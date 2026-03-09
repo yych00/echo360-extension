@@ -5,13 +5,17 @@
 
     let transcriptData = null;
     let subtitleInjected = false;
-    let activeConfig = window.__ECHO360_CC_CONFIG__ || {
+    const BASE_CONFIG = {
         ccTargetLang: 'zh-CN',
         ccFontSize: 22,
         ccEnglishFontSize: 20,
         ccTranslateColor: '#ffffff',
         ccEnglishColor: '#ffffff',
-        ccBgOpacity: 0.75
+        ccBgOpacity: 0.6
+    };
+    let activeConfig = {
+        ...BASE_CONFIG,
+        ...(window.__ECHO360_CC_CONFIG__ || {})
     };
     const TRANSLATION_BATCH_SIZE = 8;
     const FORWARD_PRIORITY_RANGE = 18;
@@ -271,16 +275,16 @@
 
     function applyConfigImmediately(nextConfig) {
         activeConfig = {
-            ...activeConfig,
+            ...BASE_CONFIG,
             ...(nextConfig || {})
         };
         window.__ECHO360_CC_CONFIG__ = activeConfig;
 
         const overlay = document.getElementById('echo360-cc-overlay');
         if (overlay) {
-            const bgOp = activeConfig.ccBgOpacity !== undefined ? activeConfig.ccBgOpacity : 0.75;
-            overlay.style.background = `rgba(0, 0, 0, ${bgOp})`;
-            overlay.style.boxShadow = bgOp === 0 ? 'none' : '0 4px 6px rgba(0,0,0,0.3)';
+            const bgOp = activeConfig.ccBgOpacity !== undefined ? activeConfig.ccBgOpacity : 0.6;
+            overlay.style.setProperty('background', `rgba(0, 0, 0, ${bgOp})`, 'important');
+            overlay.style.setProperty('box-shadow', bgOp === 0 ? 'none' : '0 4px 6px rgba(0,0,0,0.3)', 'important');
 
             if (transcriptData && transcriptData.length > 0) {
                 const currentTimeMs = getCurrentPlaybackTimeMs();
@@ -323,7 +327,7 @@
                 console.log('[Echo360 CC] Config update detected via DOM polling:', config);
                 applyConfigImmediately(config);
             }
-        } catch (e) {}
+        } catch (e) { }
     }, 500);
 
     function getCueIndexByTime(cues, currentTimeMs) {
@@ -629,10 +633,10 @@
                 const rawAttr = document.documentElement.getAttribute('data-echo360-cc-config');
                 if (rawAttr) {
                     const parsed = JSON.parse(rawAttr);
-                    activeConfig = { ...activeConfig, ...parsed };
+                    activeConfig = { ...BASE_CONFIG, ...parsed };
                     window.__ECHO360_CC_CONFIG__ = activeConfig;
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             const config = activeConfig || window.__ECHO360_CC_CONFIG__ || {};
 
@@ -667,7 +671,7 @@
 
             // 确保 overlay 长期存活
             let overlay = document.getElementById('echo360-cc-overlay');
-            const bgOp = config.ccBgOpacity !== undefined ? config.ccBgOpacity : 0.75;
+            const bgOp = config.ccBgOpacity !== undefined ? config.ccBgOpacity : 0.6;
 
             if (!overlay) {
                 overlay = document.createElement('div');
@@ -703,9 +707,9 @@
             }
 
             // 响应最新的背景透明度设置
-            overlay.style.background = `rgba(0, 0, 0, ${bgOp})`;
+            overlay.style.setProperty('background', `rgba(0, 0, 0, ${bgOp})`, 'important');
             // 如果全透明，把阴影也隐去，显得更干净
-            overlay.style.boxShadow = bgOp === 0 ? 'none' : '0 4px 6px rgba(0,0,0,0.3)';
+            overlay.style.setProperty('box-shadow', bgOp === 0 ? 'none' : '0 4px 6px rgba(0,0,0,0.3)', 'important');
 
             // 全屏处理 & 动态对齐视频画面中心
             const fsEl = document.fullscreenElement || document.webkitFullscreenElement;

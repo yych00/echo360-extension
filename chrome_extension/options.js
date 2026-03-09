@@ -12,15 +12,45 @@ const exportBtn = document.getElementById("exportTxtBtn");
 const exportStatusDiv = document.getElementById("exportStatus");
 const exportMetaDiv = document.getElementById("exportMeta");
 const resetBtn = document.getElementById("resetBtn");
+let statusClearTimer = null;
+const CONFIG_KEYS = [
+    'ccTargetLang',
+    'ccFontSize',
+    'ccEnglishFontSize',
+    'ccTranslateColor',
+    'ccEnglishColor',
+    'ccBgOpacity'
+];
 
-const DEFAULT_CONFIG = {
+const FALLBACK_DEFAULT_CONFIG = {
     ccTargetLang: 'zh-CN',
     ccFontSize: 22,
     ccEnglishFontSize: 20,
     ccTranslateColor: '#ffffff',
     ccEnglishColor: '#ffffff',
-    ccBgOpacity: 0.75
+    ccBgOpacity: 0.6
 };
+let DEFAULT_CONFIG = { ...FALLBACK_DEFAULT_CONFIG };
+
+async function loadDefaultConfig() {
+    try {
+        const response = await fetch('defaults.json');
+        if (!response.ok) {
+            throw new Error(`Failed to load defaults.json: ${response.status}`);
+        }
+
+        const defaults = await response.json();
+        DEFAULT_CONFIG = {
+            ...FALLBACK_DEFAULT_CONFIG,
+            ...(defaults || {})
+        };
+    } catch (error) {
+        DEFAULT_CONFIG = { ...FALLBACK_DEFAULT_CONFIG };
+        console.warn('[Echo360 CC] Failed to load defaults.json, using fallback defaults.', error);
+    }
+
+    return DEFAULT_CONFIG;
+}
 
 // 监听从 content.js 发出的实时进度广播
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -53,8 +83,8 @@ function formatTimestamp(ms) {
 
 function sanitizeFileName(name) {
     return (name || 'echo360-subtitles')
-    .replace(/[\/]+/g, ' - ')
-    .replace(/[:*?"<>|]+/g, '_')
+        .replace(/[\/]+/g, ' - ')
+        .replace(/[:*?"<>|]+/g, '_')
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 80) || 'echo360-subtitles';
@@ -140,6 +170,66 @@ function loadExportState() {
     });
 }
 
+function showStatus(message) {
+    if (!statusDiv) return;
+
+    statusDiv.textContent = message;
+    if (statusClearTimer) {
+        clearTimeout(statusClearTimer);
+    }
+
+    statusClearTimer = setTimeout(() => {
+        statusDiv.textContent = '';
+        statusClearTimer = null;
+    }, 3000);
+}
+
+function buildCurrentConfig() {
+    return {
+        ccTargetLang: langSelect.value,
+        ccFontSize: Number(fontSizeInput.value) || DEFAULT_CONFIG.ccFontSize,
+        ccEnglishFontSize: Number(englishFontSizeInput.value) || DEFAULT_CONFIG.ccEnglishFontSize,
+        ccTranslateColor: translateColorInput.value,
+        ccEnglishColor: englishColorInput.value,
+        ccBgOpacity: Number(bgOpacityInput.value)
+    };
+}
+
+function buildUserOverrides(config) {
+    return Object.fromEntries(
+        Object.entries(config).filter(([key, value]) => DEFAULT_CONFIG[key] !== value)
+    );
+}
+
+function applyConfigToForm(config) {
+    langSelect.value = config.ccTargetLang;
+    fontSizeInput.value = config.ccFontSize;
+    englishFontSizeInput.value = config.ccEnglishFontSize;
+    translateColorInput.value = config.ccTranslateColor;
+    englishColorInput.value = config.ccEnglishColor;
+    bgOpacityInput.value = config.ccBgOpacity;
+    updatePreview();
+}
+
+function getStoredConfig(callback) {
+    chrome.storage.sync.get(DEFAULT_CONFIG, (items) => {
+        callback(items);
+    });
+}
+
+function persistConfig(config, callback) {
+    const overrides = buildUserOverrides(config);
+    const keysToRemove = CONFIG_KEYS.filter((key) => !(key in overrides));
+
+    chrome.storage.sync.remove(keysToRemove, () => {
+        chrome.storage.sync.set(overrides, () => {
+            getStoredConfig((resolvedConfig) => {
+                callback(resolvedConfig);
+            });
+        });
+    });
+}
+
 // 更新预览界面的函数
 function updatePreview() {
     previewZh.style.fontSize = fontSizeInput.value + 'px';
@@ -160,21 +250,12 @@ function updatePreview() {
 });
 
 // 加载现有配置
-document.addEventListener('DOMContentLoaded', () => {
-    chrome.storage.sync.get(
-        DEFAULT_CONFIG,
-        (items) => {
-            langSelect.value = items.ccTargetLang;
-            fontSizeInput.value = items.ccFontSize;
-            englishFontSizeInput.value = items.ccEnglishFontSize;
-            translateColorInput.value = items.ccTranslateColor;
-            englishColorInput.value = items.ccEnglishColor;
-            bgOpacityInput.value = items.ccBgOpacity;
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadDefaultConfig();
 
-            // 初始化渲染一下预览框
-            updatePreview();
-        }
-    );
+    getStoredConfig((items) => {
+        applyConfigToForm(items);
+    });
 
     loadExportState();
 });
@@ -192,47 +273,39 @@ function broadcastConfigToTabs(config) {
                 chrome.tabs.sendMessage(tab.id, {
                     type: 'CONFIG_CHANGED',
                     config: config
-                }).catch(() => {});
+                }, () => {
+                    void chrome.runtime.lastError;
+                });
             });
         });
     });
 }
 
+// 执行保存并广播配置的核心逻辑
+function saveAndBroadcast(statusMsg) {
+    const newConfig = buildCurrentConfig();
+    persistConfig(newConfig, (resolvedConfig) => {
+        broadcastConfigToTabs(resolvedConfig);
+        showStatus(statusMsg || '设置已保存，并已立即应用到已打开的视频页。');
+    });
+}
+
 // 保存配置
 saveBtn.addEventListener('click', () => {
-    const newConfig = {
-        ccTargetLang: langSelect.value,
-        ccFontSize: Number(fontSizeInput.value) || DEFAULT_CONFIG.ccFontSize,
-        ccEnglishFontSize: Number(englishFontSizeInput.value) || DEFAULT_CONFIG.ccEnglishFontSize,
-        ccTranslateColor: translateColorInput.value,
-        ccEnglishColor: englishColorInput.value,
-        ccBgOpacity: Number(bgOpacityInput.value)
-    };
-    chrome.storage.sync.set(newConfig, () => {
-        // 保存完成后直接向所有 echo360/canvas 标签页发送新配置
-        broadcastConfigToTabs(newConfig);
-        statusDiv.textContent = '设置已保存，并已立即应用到已打开的视频页。';
-        setTimeout(() => {
-            statusDiv.textContent = '';
-        }, 3000);
-    });
+    saveAndBroadcast('设置已保存，并已立即应用到已打开的视频页。');
 });
 
 // 恢复默认配置
 resetBtn.addEventListener('click', () => {
-    if (confirm('确定要恢复到默认设置吗？(字号 22/20, 纯白配色, 0.75透明度)')) {
-        langSelect.value = DEFAULT_CONFIG.ccTargetLang;
-        fontSizeInput.value = DEFAULT_CONFIG.ccFontSize;
-        englishFontSizeInput.value = DEFAULT_CONFIG.ccEnglishFontSize;
-        translateColorInput.value = DEFAULT_CONFIG.ccTranslateColor;
-        englishColorInput.value = DEFAULT_CONFIG.ccEnglishColor;
-        bgOpacityInput.value = DEFAULT_CONFIG.ccBgOpacity;
+    applyConfigToForm(DEFAULT_CONFIG);
 
-        updatePreview();
-
-        // 点击恢复后自动触发一次保存，确保同步到页面
-        saveBtn.click();
-    }
+    chrome.storage.sync.remove(CONFIG_KEYS, () => {
+        getStoredConfig((resolvedConfig) => {
+            applyConfigToForm(resolvedConfig);
+            broadcastConfigToTabs(resolvedConfig);
+            showStatus('已恢复默认设置，并已立即应用到已打开的视频页。');
+        });
+    });
 });
 
 if (exportBtn) {
