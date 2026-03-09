@@ -633,7 +633,6 @@
         if (!transcriptData) return;
 
         console.log(`[Echo360 CC Plugin] Subtitle data stored (${transcriptData.length} cues). Starting rendering engine...`);
-        alert(`[插件调试信息] 成功截获到 ${transcriptData.length} 条字幕！插件引擎开始渲染...如果没有出字请按F12看日志。`);
 
         if (overlayLoopInterval) clearInterval(overlayLoopInterval);
 
