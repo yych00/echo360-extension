@@ -170,11 +170,81 @@
             min-height: 20px;
             font-size: 13px;
         }
+
+        /* Switch CSS */
+        .switch-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #e8f0fe;
+            border-left: 4px solid #1a73e8;
+            padding: 12px 16px;
+        }
+
+        .switch-label {
+            margin-bottom: 0;
+            color: #1a73e8;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #1a73e8;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
     </style>
 </head>
 
 <body>
     <h2>Echo360 CC 字幕助手 - 设置</h2>
+
+    <div class="setting-group switch-group">
+        <label for="enableSubtitles" class="switch-label">启用 CC 字幕功能</label>
+        <label class="switch">
+            <input type="checkbox" id="enableSubtitles" checked>
+            <span class="slider"></span>
+        </label>
+    </div>
 
     <div class="setting-group">
         <label for="targetLang">翻译目标语言 (翻译成什么语言？)</label>
@@ -254,7 +324,7 @@
     <div id="status"></div>
 
     <div style="text-align: center; margin-top: 24px; font-size: 13px; color: #888;">
-        Created with ❤️ by yuchenyang
+        Created with ❤️ by yuchenyang | MIT License
     </div>
 
     <script src="options.js"></script>

@@ -5,6 +5,7 @@
 
 // 默认配置
 const FALLBACK_DEFAULT_CONFIG = {
+    ccEnableSubtitles: true,
     ccTargetLang: 'zh-CN',
     ccFontSize: 22,
     ccEnglishFontSize: 20,

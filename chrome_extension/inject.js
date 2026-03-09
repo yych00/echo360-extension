@@ -10,6 +10,7 @@
     let transcriptData = null;
     let subtitleInjected = false;
     const BASE_CONFIG = {
+        ccEnableSubtitles: true,
         ccTargetLang: 'zh-CN',
         ccFontSize: 22,
         ccEnglishFontSize: 20,
@@ -184,11 +185,6 @@
             '[class*="breadcrumb"] span'
         ]).filter(text => !/home|dashboard|courses/i.test(text));
 
-        if (breadcrumbTexts.length >= 2) {
-            const tail = breadcrumbTexts.slice(-2);
-            return `${tail[0]} / ${tail[1]}`;
-        }
-
         const primaryTitle = normalizeTitleText(
             document.querySelector('h1')?.textContent ||
             document.querySelector('[data-testid*="title" i]')?.textContent ||
@@ -205,15 +201,31 @@
             '[class*="course" i]'
         ]).filter(text => text !== primaryTitle && !text.includes(primaryTitle));
 
-        if (primaryTitle && secondaryCandidates.length > 0) {
-            return `${primaryTitle} / ${secondaryCandidates[0]}`;
+        let finalTitle = '';
+
+        if (breadcrumbTexts.length >= 2) {
+            const tail = breadcrumbTexts.slice(-2);
+            finalTitle = `${tail[0]} / ${tail[1]}`;
+        } else if (primaryTitle && secondaryCandidates.length > 0) {
+            finalTitle = `${primaryTitle} / ${secondaryCandidates[0]}`;
+        } else if (primaryTitle) {
+            finalTitle = primaryTitle;
+        } else {
+            finalTitle = cleanDocumentTitle(document.title);
         }
 
-        if (primaryTitle) {
-            return primaryTitle;
+        const dateCandidates = collectTextsFromSelectors([
+            'time',
+            '[data-testid*="date" i]',
+            '[class*="date" i]',
+            '[data-testid*="time" i]'
+        ]).filter(text => text && !finalTitle.includes(text) && text.length > 4 && text.length < 30 && (/\d/.test(text)));
+
+        if (dateCandidates.length > 0) {
+            finalTitle += ` - ${dateCandidates[0]}`;
         }
 
-        return cleanDocumentTitle(document.title);
+        return finalTitle;
     }
 
     function buildTranscriptExportPayload() {
@@ -767,27 +779,31 @@
             }
 
             // 更新文本内容
-            const currentTextIndex = getActiveCueIndexByTime(transcriptData, currentTimeMs);
-            const currentTextObj = currentTextIndex >= 0 ? transcriptData[currentTextIndex] : null;
-
-            if (debugTick % 30 === 0) {
-                console.log(`[Echo360 CC Debug] 状态存活 -> 视频数: ${videos.length} | 毫秒: ${Math.floor(currentTimeMs)} | 中文状态: ${currentTextObj?.zhText || '未翻译'} | 命中: ${currentTextObj?.text || "None"}`);
-            }
-
-            if (currentTextObj && currentTextObj.text) {
-                const shouldRefreshLookahead = hasMissingTranslationsAroundIndex(transcriptData, currentTextIndex, PRELOAD_AHEAD_COUNT);
-
-                if (currentTextObj.zhText === undefined) {
-                    currentTextObj._tempDisplay = '正在优先翻译当前片段...';
-                }
-
-                if (shouldRefreshLookahead || translationState.focusIndex !== currentTextIndex || !translationState.processing) {
-                    queueFocusedTranslation(transcriptData, currentTextIndex);
-                }
-
-                renderOverlaySubtitle(overlay, currentTextObj, config);
-            } else {
+            if (config.ccEnableSubtitles === false) {
                 renderOverlaySubtitle(overlay, null, config);
+            } else {
+                const currentTextIndex = getActiveCueIndexByTime(transcriptData, currentTimeMs);
+                const currentTextObj = currentTextIndex >= 0 ? transcriptData[currentTextIndex] : null;
+
+                if (debugTick % 30 === 0) {
+                    console.log(`[Echo360 CC Debug] 状态存活 -> 视频数: ${videos.length} | 毫秒: ${Math.floor(currentTimeMs)} | 中文状态: ${currentTextObj?.zhText || '未翻译'} | 命中: ${currentTextObj?.text || "None"}`);
+                }
+
+                if (currentTextObj && currentTextObj.text) {
+                    const shouldRefreshLookahead = hasMissingTranslationsAroundIndex(transcriptData, currentTextIndex, PRELOAD_AHEAD_COUNT);
+
+                    if (currentTextObj.zhText === undefined) {
+                        currentTextObj._tempDisplay = '正在优先翻译当前片段...';
+                    }
+
+                    if (shouldRefreshLookahead || translationState.focusIndex !== currentTextIndex || !translationState.processing) {
+                        queueFocusedTranslation(transcriptData, currentTextIndex);
+                    }
+
+                    renderOverlaySubtitle(overlay, currentTextObj, config);
+                } else {
+                    renderOverlaySubtitle(overlay, null, config);
+                }
             }
         }, 100);
     }

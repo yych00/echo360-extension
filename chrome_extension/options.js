@@ -4,6 +4,7 @@
  */
 
 // 读取元素
+const enableSubtitlesInput = document.getElementById("enableSubtitles");
 const langSelect = document.getElementById("targetLang");
 const fontSizeInput = document.getElementById("fontSize");
 const englishFontSizeInput = document.getElementById("englishFontSize");
@@ -19,6 +20,7 @@ const exportMetaDiv = document.getElementById("exportMeta");
 const resetBtn = document.getElementById("resetBtn");
 let statusClearTimer = null;
 const CONFIG_KEYS = [
+    'ccEnableSubtitles',
     'ccTargetLang',
     'ccFontSize',
     'ccEnglishFontSize',
@@ -28,6 +30,7 @@ const CONFIG_KEYS = [
 ];
 
 const FALLBACK_DEFAULT_CONFIG = {
+    ccEnableSubtitles: true,
     ccTargetLang: 'zh-CN',
     ccFontSize: 22,
     ccEnglishFontSize: 20,
@@ -191,6 +194,7 @@ function showStatus(message) {
 
 function buildCurrentConfig() {
     return {
+        ccEnableSubtitles: enableSubtitlesInput.checked,
         ccTargetLang: langSelect.value,
         ccFontSize: Number(fontSizeInput.value) || DEFAULT_CONFIG.ccFontSize,
         ccEnglishFontSize: Number(englishFontSizeInput.value) || DEFAULT_CONFIG.ccEnglishFontSize,
@@ -207,6 +211,9 @@ function buildUserOverrides(config) {
 }
 
 function applyConfigToForm(config) {
+    if (config.ccEnableSubtitles !== undefined) {
+        enableSubtitlesInput.checked = config.ccEnableSubtitles;
+    }
     langSelect.value = config.ccTargetLang;
     fontSizeInput.value = config.ccFontSize;
     englishFontSizeInput.value = config.ccEnglishFontSize;
@@ -247,10 +254,19 @@ function updatePreview() {
     const opVal = Number(bgOpacityInput.value);
     previewBox.style.background = `rgba(0, 0, 0, ${opVal})`;
     previewBox.style.boxShadow = opVal === 0 ? 'none' : 'inset 0 2px 5px rgba(0, 0, 0, 0.5)';
+
+    // 显示或隐藏字幕预览
+    if (!enableSubtitlesInput.checked) {
+        previewEn.style.display = 'none';
+        previewZh.style.display = 'none';
+    } else {
+        previewEn.style.display = 'block';
+        previewZh.style.display = 'block';
+    }
 }
 
 // 监听一切能导致 UI 变化的事件
-[langSelect, fontSizeInput, englishFontSizeInput, translateColorInput, englishColorInput, bgOpacityInput].forEach(el => {
+[enableSubtitlesInput, langSelect, fontSizeInput, englishFontSizeInput, translateColorInput, englishColorInput, bgOpacityInput].forEach(el => {
     el.addEventListener('input', updatePreview);
 });
 
@@ -295,7 +311,12 @@ function saveAndBroadcast(statusMsg) {
     });
 }
 
-// 保存配置
+// 启用 CC 字幕开关独立保存
+enableSubtitlesInput.addEventListener('change', () => {
+    saveAndBroadcast(enableSubtitlesInput.checked ? 'CC 字幕已启用。' : 'CC 字幕已关闭。');
+});
+
+// 保存配置 (不包含 enableSubtitles 的其余设置通过保存按钮保存)
 saveBtn.addEventListener('click', () => {
     saveAndBroadcast('设置已保存，并已立即应用到已打开的视频页。');
 });
