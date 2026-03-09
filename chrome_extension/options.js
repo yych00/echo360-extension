@@ -138,7 +138,7 @@ function triggerTxtDownload(payload) {
     ].join('');
 
     link.href = url;
-    link.download = `${title}-${lang}-${timeStr}-bilingual.txt`;
+    link.download = `${title}-${timeStr}.txt`;
     document.body.appendChild(link);
     link.click();
     link.remove();
