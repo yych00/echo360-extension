@@ -86,6 +86,27 @@
             background: #1557b0;
         }
 
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .button-group button {
+            margin-top: 0;
+            flex: 1;
+        }
+
+        .reset-btn {
+            background: #f1f3f4;
+            color: #5f6368;
+            border: 1px solid #dadce0;
+        }
+
+        .reset-btn:hover {
+            background: #e8eaed;
+        }
+
         #status {
             color: #0f9d58;
             font-weight: bold;
@@ -112,6 +133,43 @@
         .preview-zh {
             font-weight: bold;
         }
+
+        .export-card {
+            margin-top: 20px;
+            background: #fff;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .export-meta {
+            font-size: 13px;
+            line-height: 1.6;
+            color: #4a5568;
+            margin-top: 10px;
+        }
+
+        .export-meta strong {
+            color: #1f2937;
+        }
+
+        .secondary-btn {
+            margin-top: 12px;
+            background: #0f9d58;
+        }
+
+        .secondary-btn:hover {
+            background: #0b7a43;
+        }
+
+        .muted-status {
+            color: #5f6368;
+            font-weight: 600;
+            text-align: center;
+            margin-top: 10px;
+            min-height: 20px;
+            font-size: 13px;
+        }
     </style>
 </head>
 
@@ -131,7 +189,7 @@
     </div>
 
     <div class="setting-group">
-        <label>当前视频网页的后台翻译进度 (返回课件网页刷新后生效并同步)</label>
+        <label>当前视频网页的后台翻译进度 (保存设置后会立即同步到已打开的视频页)</label>
         <div
             style="background: #e0e0e0; border-radius: 4px; overflow: hidden; height: 26px; position: relative; margin-top: 8px;">
             <div id="optionProgressBar"
@@ -180,7 +238,19 @@
         <div class="preview-zh" id="previewZh" style="color: #ffffff;">这里是动态为您翻译的中文效果</div>
     </div>
 
-    <button id="saveBtn">保存设置</button>
+    <div class="export-card">
+        <label>导出中英文字幕</label>
+        <div class="export-meta" id="exportMeta">
+            暂无字幕缓存。请先打开 Echo360 视频页面并开始播放。
+        </div>
+        <button id="exportTxtBtn" class="secondary-btn" type="button" disabled>导出双语 TXT</button>
+        <div id="exportStatus" class="muted-status"></div>
+    </div>
+
+    <div class="button-group">
+        <button id="resetBtn" class="reset-btn" type="button">恢复默认</button>
+        <button id="saveBtn" type="button">保存设置</button>
+    </div>
     <div id="status"></div>
 
     <script src="options.js"></script>

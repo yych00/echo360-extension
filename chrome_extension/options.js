@@ -8,6 +8,19 @@ const bgOpacityInput = document.getElementById("bgOpacity");
 const bgOpacityValue = document.getElementById("bgOpacityValue");
 const saveBtn = document.getElementById("saveBtn");
 const statusDiv = document.getElementById("status");
+const exportBtn = document.getElementById("exportTxtBtn");
+const exportStatusDiv = document.getElementById("exportStatus");
+const exportMetaDiv = document.getElementById("exportMeta");
+const resetBtn = document.getElementById("resetBtn");
+
+const DEFAULT_CONFIG = {
+    ccTargetLang: 'zh-CN',
+    ccFontSize: 22,
+    ccEnglishFontSize: 20,
+    ccTranslateColor: '#ffffff',
+    ccEnglishColor: '#ffffff',
+    ccBgOpacity: 0.75
+};
 
 // 监听从 content.js 发出的实时进度广播
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -20,11 +33,112 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             bar.style.background = msg.percent === 100 ? '#0f9d58' : '#1a73e8';
         }
     }
+
+    if (msg.type === 'TRANSCRIPT_EXPORT_UPDATED') {
+        loadExportState();
+    }
 });
 
 const previewBox = document.getElementById("previewBox");
 const previewEn = document.getElementById("previewEn");
 const previewZh = document.getElementById("previewZh");
+
+function formatTimestamp(ms) {
+    const totalSeconds = Math.max(0, Math.floor((ms || 0) / 1000));
+    const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+    const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+    const seconds = String(totalSeconds % 60).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+}
+
+function sanitizeFileName(name) {
+    return (name || 'echo360-subtitles')
+    .replace(/[\/]+/g, ' - ')
+    .replace(/[:*?"<>|]+/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80) || 'echo360-subtitles';
+}
+
+function buildTranscriptTxt(payload) {
+    const lines = [];
+    lines.push(`标题: ${payload.title || 'Echo360 字幕'}`);
+    lines.push(`页面: ${payload.pageUrl || ''}`);
+    lines.push(`目标语言: ${payload.targetLang || 'zh-CN'}`);
+    lines.push(`字幕条数: ${payload.cueCount || 0}`);
+    lines.push(`已翻译: ${payload.translatedCount || 0}`);
+    lines.push('');
+
+    (payload.cues || []).forEach((cue) => {
+        lines.push(`[${formatTimestamp(cue.start)} - ${formatTimestamp(cue.end)}]`);
+        lines.push(`EN: ${cue.text || ''}`);
+        lines.push(`ZH: ${cue.zhText || ''}`);
+        lines.push('');
+    });
+
+    return lines.join('\n');
+}
+
+function triggerTxtDownload(payload) {
+    const textContent = buildTranscriptTxt(payload);
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const title = sanitizeFileName(payload.title);
+    const lang = payload.targetLang || 'zh-CN';
+
+    // 用缓存时间生成文件名时间戳，格式: 20260310-143025
+    const dateObj = payload.capturedAt ? new Date(payload.capturedAt) : new Date();
+    const timeStr = [
+        dateObj.getFullYear(),
+        String(dateObj.getMonth() + 1).padStart(2, '0'),
+        String(dateObj.getDate()).padStart(2, '0'),
+        '-',
+        String(dateObj.getHours()).padStart(2, '0'),
+        String(dateObj.getMinutes()).padStart(2, '0'),
+        String(dateObj.getSeconds()).padStart(2, '0')
+    ].join('');
+
+    link.href = url;
+    link.download = `${title}-${lang}-${timeStr}-bilingual.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(() => {
+        URL.revokeObjectURL(url);
+    }, 1000);
+}
+
+function updateExportUi(payload) {
+    if (!exportBtn || !exportMetaDiv || !exportStatusDiv) return;
+
+    if (!payload || !payload.cues || payload.cues.length === 0) {
+        exportBtn.disabled = true;
+        exportMetaDiv.textContent = '暂无字幕缓存。请先打开 Echo360 视频页面并开始播放。';
+        exportStatusDiv.textContent = '';
+        return;
+    }
+
+    exportBtn.disabled = false;
+    const capturedAt = payload.capturedAt ? new Date(payload.capturedAt).toLocaleString() : '未知';
+    const title = payload.title || '未命名视频';
+    exportMetaDiv.innerHTML = `
+        <div><strong>课程标题：</strong>${title}</div>
+        <div><strong>字幕条数：</strong>${payload.cueCount || payload.cues.length} 条</div>
+        <div><strong>已翻译：</strong>${payload.translatedCount || 0} 条</div>
+        <div><strong>缓存时间：</strong>${capturedAt}</div>
+    `;
+    exportStatusDiv.textContent = payload.isTranslationComplete
+        ? '字幕缓存完整，可以直接导出双语 TXT。'
+        : '字幕缓存已同步，尚有部分中文未完成翻译。';
+}
+
+function loadExportState() {
+    chrome.storage.local.get({ echo360TranscriptExport: null }, (items) => {
+        updateExportUi(items.echo360TranscriptExport);
+    });
+}
 
 // 更新预览界面的函数
 function updatePreview() {
@@ -48,47 +162,92 @@ function updatePreview() {
 // 加载现有配置
 document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.sync.get(
-        {
-            ccTargetLang: 'zh-CN',
-            ccFontSize: 22,
-            ccEnglishFontSize: 20,
-            ccTranslateColor: '#ffffff', // 纯白
-            ccEnglishColor: '#ffffff',    // 纯白
-            ccBgOpacity: 0.75
-        },
+        DEFAULT_CONFIG,
         (items) => {
             langSelect.value = items.ccTargetLang;
             fontSizeInput.value = items.ccFontSize;
             englishFontSizeInput.value = items.ccEnglishFontSize;
             translateColorInput.value = items.ccTranslateColor;
             englishColorInput.value = items.ccEnglishColor;
-
-            if (items.ccBgOpacity !== undefined) {
-                bgOpacityInput.value = items.ccBgOpacity;
-            }
+            bgOpacityInput.value = items.ccBgOpacity;
 
             // 初始化渲染一下预览框
             updatePreview();
         }
     );
+
+    loadExportState();
 });
+
+// 将配置直接发送给所有匹配的标签页 (content script)
+function broadcastConfigToTabs(config) {
+    const urlPatterns = [
+        '*://echo360.net.au/*',
+        '*://canvas.lms.unimelb.edu.au/*'
+    ];
+    urlPatterns.forEach(pattern => {
+        chrome.tabs.query({ url: pattern }, (tabs) => {
+            if (chrome.runtime.lastError) return;
+            (tabs || []).forEach(tab => {
+                chrome.tabs.sendMessage(tab.id, {
+                    type: 'CONFIG_CHANGED',
+                    config: config
+                }).catch(() => {});
+            });
+        });
+    });
+}
 
 // 保存配置
 saveBtn.addEventListener('click', () => {
-    chrome.storage.sync.set(
-        {
-            ccTargetLang: langSelect.value,
-            ccFontSize: Number(fontSizeInput.value) || 22,
-            ccEnglishFontSize: Number(englishFontSizeInput.value) || 20,
-            ccTranslateColor: translateColorInput.value,
-            ccEnglishColor: englishColorInput.value,
-            ccBgOpacity: Number(bgOpacityInput.value)
-        },
-        () => {
-            statusDiv.textContent = '设置已成功保存！请刷新视频页面以应用。';
-            setTimeout(() => {
-                statusDiv.textContent = '';
-            }, 3000);
-        }
-    );
+    const newConfig = {
+        ccTargetLang: langSelect.value,
+        ccFontSize: Number(fontSizeInput.value) || DEFAULT_CONFIG.ccFontSize,
+        ccEnglishFontSize: Number(englishFontSizeInput.value) || DEFAULT_CONFIG.ccEnglishFontSize,
+        ccTranslateColor: translateColorInput.value,
+        ccEnglishColor: englishColorInput.value,
+        ccBgOpacity: Number(bgOpacityInput.value)
+    };
+    chrome.storage.sync.set(newConfig, () => {
+        // 保存完成后直接向所有 echo360/canvas 标签页发送新配置
+        broadcastConfigToTabs(newConfig);
+        statusDiv.textContent = '设置已保存，并已立即应用到已打开的视频页。';
+        setTimeout(() => {
+            statusDiv.textContent = '';
+        }, 3000);
+    });
 });
+
+// 恢复默认配置
+resetBtn.addEventListener('click', () => {
+    if (confirm('确定要恢复到默认设置吗？(字号 22/20, 纯白配色, 0.75透明度)')) {
+        langSelect.value = DEFAULT_CONFIG.ccTargetLang;
+        fontSizeInput.value = DEFAULT_CONFIG.ccFontSize;
+        englishFontSizeInput.value = DEFAULT_CONFIG.ccEnglishFontSize;
+        translateColorInput.value = DEFAULT_CONFIG.ccTranslateColor;
+        englishColorInput.value = DEFAULT_CONFIG.ccEnglishColor;
+        bgOpacityInput.value = DEFAULT_CONFIG.ccBgOpacity;
+
+        updatePreview();
+
+        // 点击恢复后自动触发一次保存，确保同步到页面
+        saveBtn.click();
+    }
+});
+
+if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+        chrome.storage.local.get({ echo360TranscriptExport: null }, (items) => {
+            const payload = items.echo360TranscriptExport;
+            if (!payload || !payload.cues || payload.cues.length === 0) {
+                updateExportUi(null);
+                return;
+            }
+
+            triggerTxtDownload(payload);
+            exportStatusDiv.textContent = payload.isTranslationComplete
+                ? '双语 TXT 已导出。'
+                : '双语 TXT 已导出；未翻译的字幕行会保留为空。';
+        });
+    });
+}

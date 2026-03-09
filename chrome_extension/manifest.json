@@ -5,7 +5,9 @@
     "description": "自动拦截 Echo360 的内部 API 并往原生 HTML5 播放器中挂载 CC 字幕音轨。",
     "options_page": "options.html",
     "permissions": [
-        "storage"
+        "storage",
+        "activeTab",
+        "tabs"
     ],
     "host_permissions": [
         "*://echo360.net.au/*",

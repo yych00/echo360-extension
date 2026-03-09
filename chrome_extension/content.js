@@ -8,6 +8,28 @@ const DEFAULT_CONFIG = {
     ccBgOpacity: 0.75
 };
 
+function injectConfigToPage(config) {
+    const configScript = document.createElement('script');
+    configScript.textContent = `
+        window.__ECHO360_CC_CONFIG__ = ${JSON.stringify(config)};
+        window.dispatchEvent(new CustomEvent('echo360-cc-config-updated', {
+            detail: window.__ECHO360_CC_CONFIG__
+        }));
+    `;
+    (document.head || document.documentElement).appendChild(configScript);
+    configScript.remove();
+}
+
+// 监听来自 options 页面的配置变更消息，并立即写入 DOM 属性供 inject.js 读取
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'CONFIG_CHANGED' && msg.config) {
+        document.documentElement.setAttribute(
+            'data-echo360-cc-config',
+            JSON.stringify(msg.config)
+        );
+    }
+});
+
 // 监听从网站里的 inject.js 传出来的进度消息并向外透传给插件 options
 window.addEventListener('message', (event) => {
     if (event.source === window && event.data && event.data.source === 'echo360-cc-inject') {
@@ -16,15 +38,39 @@ window.addEventListener('message', (event) => {
                 chrome.runtime.sendMessage(event.data).catch(() => { });
             } catch (e) { }
         }
+
+        if (event.data.type === 'TRANSCRIPT_EXPORT_UPDATE' && event.data.payload) {
+            const exportPayload = {
+                ...event.data.payload,
+                capturedAt: new Date().toISOString()
+            };
+
+            chrome.storage.local.set({ echo360TranscriptExport: exportPayload }, () => {
+                try {
+                    chrome.runtime.sendMessage({
+                        type: 'TRANSCRIPT_EXPORT_UPDATED',
+                        payload: {
+                            title: exportPayload.title,
+                            cueCount: exportPayload.cues?.length || 0,
+                            translatedCount: exportPayload.translatedCount || 0,
+                            isTranslationComplete: !!exportPayload.isTranslationComplete
+                        }
+                    }).catch(() => { });
+                } catch (e) { }
+            });
+        }
     }
 });
 
 chrome.storage.sync.get(DEFAULT_CONFIG, (items) => {
     // 1. 将配置作为全局变量打入主页面的 Window 环境中
-    const configScript = document.createElement('script');
-    configScript.textContent = `window.__ECHO360_CC_CONFIG__ = ${JSON.stringify(items)};`;
-    (document.head || document.documentElement).appendChild(configScript);
-    configScript.remove(); // 隐藏痕迹
+    injectConfigToPage(items);
+
+    // 1.5 同时写入 DOM 属性，供 inject.js 轮询读取 (保证跨世界可靠)
+    document.documentElement.setAttribute(
+        'data-echo360-cc-config',
+        JSON.stringify(items)
+    );
 
     // 2. 将真正的请求拦截和渲染引擎注入
     const script = document.createElement('script');
@@ -39,10 +85,27 @@ chrome.storage.sync.get(DEFAULT_CONFIG, (items) => {
 chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'sync') {
         chrome.storage.sync.get(DEFAULT_CONFIG, (items) => {
-            const syncScript = document.createElement('script');
-            syncScript.textContent = `window.__ECHO360_CC_CONFIG__ = ${JSON.stringify(items)};`;
-            (document.head || document.documentElement).appendChild(syncScript);
-            syncScript.remove();
+            // 通过 DOM 属性传递配置到 page world (content script 与页面共享 DOM，不受 CSP 限制)
+            document.documentElement.setAttribute(
+                'data-echo360-cc-config',
+                JSON.stringify(items)
+            );
         });
     }
 });
+
+// 兜底机制：每 2 秒主动轮询 chrome.storage，确保配置一定能同步到 DOM 属性
+// 不依赖任何事件，即使 onChanged / onMessage 在跨域 iframe 中不触发也能生效
+setInterval(() => {
+    try {
+        chrome.storage.sync.get(DEFAULT_CONFIG, (items) => {
+            if (chrome.runtime.lastError) return;
+            document.documentElement.setAttribute(
+                'data-echo360-cc-config',
+                JSON.stringify(items)
+            );
+        });
+    } catch (e) {
+        // 扩展上下文已失效 (页面没刷新但扩展被重载)，停止轮询
+    }
+}, 2000);
