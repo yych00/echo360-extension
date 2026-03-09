@@ -120,8 +120,14 @@
         const config = window.__ECHO360_CC_CONFIG__ || { ccTargetLang: 'zh-CN' };
         const tl = config.ccTargetLang || 'zh-CN';
 
-        // 限制并发量，每秒翻译几句话，防止封禁
-        const chunk = 3;
+        // 发送进度消息到外层 content.js (供扩展程序的设置页展示)
+        const sendProgress = (percent, msg) => {
+            window.postMessage({ source: 'echo360-cc-inject', type: 'PROGRESS_UPDATE', percent, msg }, '*');
+        };
+        sendProgress(0, "🔄 翻译任务初始化...");
+
+        // 限制并发量，每次翻译 10 句话加快速度
+        const chunk = 10;
         for (let i = 0; i < cues.length; i += chunk) {
             const batch = cues.slice(i, i + chunk);
 
@@ -148,9 +154,16 @@
                 }
             }));
 
-            // 每次拉取 3 句话后，歇息 250ms 免死金牌
+            // 发送进度给设置页面
+            const percent = Math.min(100, Math.round(((i + chunk) / cues.length) * 100));
+            sendProgress(percent, "🧠 正在智能加载翻译资源");
+
+            // 每次拉取 10 句话后，歇息 250ms 防止被封
             await new Promise(r => setTimeout(r, 250));
         }
+
+        // 完成提示
+        sendProgress(100, "✅ 课程全量双语翻译已完毕");
         console.log(`[Echo360 CC Plugin] Background Translation Completed!`);
     }
 
@@ -283,17 +296,16 @@
 
             // 确保 overlay 长期存活
             let overlay = document.getElementById('echo360-cc-overlay');
-            if (!overlay) {
-                const config = window.__ECHO360_CC_CONFIG__ || {};
-                const fontSize = config.ccFontSize || 24;
+            const config = window.__ECHO360_CC_CONFIG__ || {};
+            const bgOp = config.ccBgOpacity !== undefined ? config.ccBgOpacity : 0.75;
 
+            if (!overlay) {
                 overlay = document.createElement('div');
                 overlay.id = 'echo360-cc-overlay';
                 overlay.style.cssText = `
                     position: fixed; 
                     text-align: center; 
                     color: #ffffff; 
-                    background: rgba(0, 0, 0, 0.75); 
                     padding: 8px 18px; 
                     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                     border-radius: 6px; 
@@ -312,6 +324,11 @@
                 console.log("[Echo360 CC Debug] CC Overlay 元素已成功创建并附加到 body!");
             }
 
+            // 响应最新的背景透明度设置
+            overlay.style.background = `rgba(0, 0, 0, ${bgOp})`;
+            // 如果全透明，把阴影也隐去，显得更干净
+            overlay.style.boxShadow = bgOp === 0 ? 'none' : '0 4px 6px rgba(0,0,0,0.3)';
+
             // 全屏处理 & 动态对齐视频画面中心
             const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
             if (fsEl) {
@@ -320,7 +337,7 @@
                 }
                 overlay.style.position = 'absolute';
                 overlay.style.left = '50%';
-                overlay.style.bottom = '8%';
+                overlay.style.bottom = '5%';
                 overlay.style.transform = 'translateX(-50%)';
             } else {
                 if (overlay.parentElement !== document.body) {
@@ -351,8 +368,8 @@
 
                     // 设为所有视频框【联合大容器】的绝对水平中心点
                     overlay.style.left = (minLeft + combinedWidth / 2) + 'px';
-                    // 距离屏幕底部的高度 = 视口高度 - 联合最深的底片高度 + 留出40px控制栏余量
-                    const absoluteBottom = window.innerHeight - maxBottom + 40;
+                    // 距离屏幕底部的高度 = 视口高度 - 联合最深的底片高度 + 留出 15px 控制栏余量
+                    const absoluteBottom = window.innerHeight - maxBottom + 15;
                     overlay.style.bottom = absoluteBottom + 'px';
                     overlay.style.transform = 'translateX(-50%)'; // 强行拉回字幕自身宽度的一半实现绝对居中
                 }
@@ -400,7 +417,7 @@
                 const enColor = config.ccEnglishColor || '#ffffff';
                 const zhColor = config.ccTranslateColor || '#ffffff';
                 const enFontSize = config.ccEnglishFontSize || 20;
-                const zhFontSize = config.ccFontSize || 24;
+                const zhFontSize = config.ccFontSize || 22;
 
                 // 双语排版渲染 (上方稍小英文字幕，下方高亮中文字幕)
                 const enHtml = `<div style="font-size: ${enFontSize}px; opacity: 0.9; margin-bottom: 4px; color: ${enColor};">${currentTextObj.text}</div>`;

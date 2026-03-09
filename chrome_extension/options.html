@@ -131,13 +131,34 @@
     </div>
 
     <div class="setting-group">
+        <label>当前视频网页的后台翻译进度 (返回课件网页刷新后生效并同步)</label>
+        <div
+            style="background: #e0e0e0; border-radius: 4px; overflow: hidden; height: 26px; position: relative; margin-top: 8px;">
+            <div id="optionProgressBar"
+                style="width: 0%; height: 100%; background: #1a73e8; transition: width 0.3s ease-out;"></div>
+            <div id="optionProgressText"
+                style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; text-align: center; font-size: 13px; line-height: 26px; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); font-weight: bold;">
+                暂无活跃任务 (请播放视频同步进度)</div>
+        </div>
+    </div>
+
+    <div class="setting-group">
         <label for="fontSize">中文翻译字幕字号大小 (px)</label>
-        <input type="number" id="fontSize" value="24" min="12" max="64">
+        <input type="number" id="fontSize" value="22" min="12" max="64">
     </div>
 
     <div class="setting-group">
         <label for="englishFontSize">英文字幕字号大小 (px)</label>
         <input type="number" id="englishFontSize" value="20" min="12" max="64">
+    </div>
+
+    <div class="setting-group">
+        <label for="bgOpacity">字幕背景透明度 (0为全透明, 1为不透明)</label>
+        <div style="display: flex; align-items: center;">
+            <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.75"
+                style="flex: 1; margin-right: 15px;">
+            <span id="bgOpacityValue" style="width: 35px; font-weight: bold;">0.75</span>
+        </div>
     </div>
 
     <div class="setting-group">
