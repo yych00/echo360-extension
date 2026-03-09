@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Echo360 CC 字幕配置</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            background-color: #f7f9fc;
+            color: #333;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            color: #1a73e8;
+            font-size: 20px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .setting-group {
+            margin-bottom: 18px;
+            background: #fff;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        select,
+        input[type="number"],
+        input[type="color"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        select:focus,
+        input:focus {
+            border-color: #1a73e8;
+            outline: none;
+        }
+
+        .color-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .color-row input[type="color"] {
+            width: 50px;
+            height: 35px;
+            padding: 2px;
+            cursor: pointer;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 24px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #1557b0;
+        }
+
+        #status {
+            color: #0f9d58;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 12px;
+            min-height: 20px;
+        }
+
+        .preview-box {
+            margin-top: 24px;
+            background: #222;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
+        }
+
+        .preview-en {
+            color: #fff;
+            opacity: 0.9;
+            margin-bottom: 4px;
+        }
+
+        .preview-zh {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Echo360 CC 字幕助手 - 设置</h2>
+
+    <div class="setting-group">
+        <label for="targetLang">翻译目标语言 (翻译成什么语言？)</label>
+        <select id="targetLang">
+            <option value="zh-CN">简体中文 (默认)</option>
+            <option value="zh-TW">繁体中文</option>
+            <option value="ja">日语 (Japanese)</option>
+            <option value="ko">韩语 (Korean)</option>
+            <option value="fr">法语 (French)</option>
+            <option value="es">西班牙语 (Spanish)</option>
+        </select>
+    </div>
+
+    <div class="setting-group">
+        <label for="fontSize">中文翻译字幕字号大小 (px)</label>
+        <input type="number" id="fontSize" value="24" min="12" max="64">
+    </div>
+
+    <div class="setting-group">
+        <label for="englishFontSize">英文字幕字号大小 (px)</label>
+        <input type="number" id="englishFontSize" value="20" min="12" max="64">
+    </div>
+
+    <div class="setting-group">
+        <div class="color-row">
+            <label for="translateColor">翻译字幕颜色</label>
+            <input type="color" id="translateColor" value="#ffffff">
+        </div>
+    </div>
+
+    <div class="setting-group">
+        <div class="color-row">
+            <label for="englishColor">英文字幕底色</label>
+            <input type="color" id="englishColor" value="#ffffff">
+        </div>
+    </div>
+
+    <div class="preview-box" id="previewBox">
+        <div class="preview-en" id="previewEn" style="color: #ffffff;">This is the original English text.</div>
+        <div class="preview-zh" id="previewZh" style="color: #ffffff;">这里是动态为您翻译的中文效果</div>
+    </div>
+
+    <button id="saveBtn">保存设置</button>
+    <div id="status"></div>
+
+    <script src="options.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,38 @@
+{
+    "manifest_version": 3,
+    "name": "Echo360 CC 字幕助手",
+    "version": "1.0",
+    "description": "自动拦截 Echo360 的内部 API 并往原生 HTML5 播放器中挂载 CC 字幕音轨。",
+    "options_page": "options.html",
+    "permissions": [
+        "storage"
+    ],
+    "host_permissions": [
+        "*://echo360.net.au/*",
+        "*://canvas.lms.unimelb.edu.au/*"
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "*://echo360.net.au/*",
+                "*://canvas.lms.unimelb.edu.au/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_start",
+            "all_frames": true
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "inject.js"
+            ],
+            "matches": [
+                "*://echo360.net.au/*",
+                "*://canvas.lms.unimelb.edu.au/*"
+            ]
+        }
+    ]
+}
