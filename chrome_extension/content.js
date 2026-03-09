@@ -1,3 +1,8 @@
+/**
+ * @author yuchenyang
+ * @description Echo360 CC 字幕助手 Content Script
+ */
+
 // 默认配置
 const FALLBACK_DEFAULT_CONFIG = {
     ccTargetLang: 'zh-CN',

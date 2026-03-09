@@ -1,3 +1,7 @@
+/**
+ * @author yuchenyang
+ * @description Echo360 CC 字幕助手 Inject Script
+ */
 (function () {
     'use strict';
 

@@ -2,6 +2,7 @@
     "manifest_version": 3,
     "name": "Echo360 CC 字幕助手",
     "version": "1.0",
+    "author": "yuchenyang",
     "description": "自动拦截 Echo360 的内部 API 并往原生 HTML5 播放器中挂载 CC 字幕音轨。",
     "options_page": "options.html",
     "permissions": [

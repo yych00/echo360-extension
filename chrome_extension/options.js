@@ -1,3 +1,8 @@
+/**
+ * @author yuchenyang
+ * @description Echo360 CC 字幕助手 Options Script
+ */
+
 // 读取元素
 const langSelect = document.getElementById("targetLang");
 const fontSizeInput = document.getElementById("fontSize");
