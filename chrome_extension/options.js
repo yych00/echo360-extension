@@ -162,6 +162,15 @@ function triggerTxtDownload(payload) {
 function updateExportUi(payload) {
     if (!exportBtn || !exportMetaDiv || !exportStatusDiv) return;
 
+    const renderMetaRow = (label, value) => {
+        const row = document.createElement('div');
+        const strong = document.createElement('strong');
+        strong.textContent = `${label}：`;
+        row.appendChild(strong);
+        row.appendChild(document.createTextNode(String(value)));
+        return row;
+    };
+
     if (!payload || !payload.cues || payload.cues.length === 0) {
         exportBtn.disabled = true;
         exportMetaDiv.textContent = '暂无字幕缓存。请先打开 Echo360 视频页面并开始播放。';
@@ -172,12 +181,12 @@ function updateExportUi(payload) {
     exportBtn.disabled = false;
     const capturedAt = payload.capturedAt ? new Date(payload.capturedAt).toLocaleString() : '未知';
     const title = payload.title || '未命名视频';
-    exportMetaDiv.innerHTML = `
-        <div><strong>课程标题：</strong>${title}</div>
-        <div><strong>字幕条数：</strong>${payload.cueCount || payload.cues.length} 条</div>
-        <div><strong>已翻译：</strong>${payload.translatedCount || 0} 条</div>
-        <div><strong>缓存时间：</strong>${capturedAt}</div>
-    `;
+    exportMetaDiv.replaceChildren(
+        renderMetaRow('课程标题', title),
+        renderMetaRow('字幕条数', `${payload.cueCount || payload.cues.length} 条`),
+        renderMetaRow('已翻译', `${payload.translatedCount || 0} 条`),
+        renderMetaRow('缓存时间', capturedAt)
+    );
     exportStatusDiv.textContent = payload.isTranslationComplete
         ? '字幕缓存完整，可以直接导出双语 TXT。'
         : '字幕缓存已同步，尚有部分中文未完成翻译。';

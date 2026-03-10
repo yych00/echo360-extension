@@ -274,7 +274,7 @@
 
         if (!cue || !cue.text) {
             overlay.style.display = 'none';
-            overlay.innerHTML = '';
+            overlay.replaceChildren();
             return;
         }
 
@@ -284,7 +284,7 @@
         // 中英文均不显示时，直接隐藏 overlay
         if (!showEn && !showZh) {
             overlay.style.display = 'none';
-            overlay.innerHTML = '';
+            overlay.replaceChildren();
             return;
         }
 
@@ -293,16 +293,39 @@
         const zhColor = config.ccTranslateColor || '#ffffff';
         const enFontSize = config.ccEnglishFontSize || 20;
         const zhFontSize = config.ccFontSize || 22;
-        const lineStyle = 'width: 100%; white-space: normal; overflow-wrap: anywhere; word-break: break-word;';
+        const makeSubtitleLine = (role, text, styleMap) => {
+            const line = document.createElement('div');
+            line.dataset.echo360Role = role;
+            line.textContent = text;
+            Object.assign(line.style, {
+                width: '100%',
+                whiteSpace: 'normal',
+                overflowWrap: 'anywhere',
+                wordBreak: 'break-word'
+            }, styleMap);
+            return line;
+        };
 
-        const enHtml = showEn
-            ? `<div data-echo360-role="en" style="${lineStyle} font-size: ${enFontSize}px; opacity: 0.9; color: ${enColor};">${cue.text}</div>`
-            : '';
-        const zhHtml = showZh
-            ? `<div data-echo360-role="zh" style="${lineStyle} font-size: ${zhFontSize}px; color: ${zhColor}; font-weight: bold; font-family: 'Microsoft YaHei', sans-serif;">${zhTextRaw}</div>`
-            : '';
+        const subtitleNodes = [];
 
-        overlay.innerHTML = enHtml + zhHtml;
+        if (showEn) {
+            subtitleNodes.push(makeSubtitleLine('en', cue.text, {
+                fontSize: `${enFontSize}px`,
+                opacity: '0.9',
+                color: enColor
+            }));
+        }
+
+        if (showZh) {
+            subtitleNodes.push(makeSubtitleLine('zh', zhTextRaw, {
+                fontSize: `${zhFontSize}px`,
+                color: zhColor,
+                fontWeight: 'bold',
+                fontFamily: 'Microsoft YaHei, sans-serif'
+            }));
+        }
+
+        overlay.replaceChildren(...subtitleNodes);
         overlay.style.display = 'block';
     }
 
