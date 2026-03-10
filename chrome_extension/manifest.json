@@ -3,14 +3,13 @@
     "name": "Echo360 CC 字幕助手",
     "version": "1.0",
     "author": "yuchenyang",
-    "description": "自动拦截 Echo360 的内部 API 并往原生 HTML5 播放器中挂载 CC 字幕音轨。",
+    "description": "为 Echo360 视频课程自动加载 CC 字幕，并提供实时中文翻译显示。",
     "options_page": "options.html",
     "action": {
         "default_popup": "options.html"
     },
     "permissions": [
-        "storage",
-        "activeTab"
+        "storage"
     ],
     "host_permissions": [
         "*://echo360.net.au/*",
