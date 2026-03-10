@@ -14,7 +14,8 @@
     ],
     "host_permissions": [
         "*://echo360.net.au/*",
-        "*://canvas.lms.unimelb.edu.au/*"
+        "*://canvas.lms.unimelb.edu.au/*",
+        "*://translate.googleapis.com/*"
     ],
     "content_scripts": [
         {
