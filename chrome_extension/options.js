@@ -19,6 +19,8 @@ const exportStatusDiv = document.getElementById("exportStatus");
 const exportMetaDiv = document.getElementById("exportMeta");
 const resetBtn = document.getElementById("resetBtn");
 let statusClearTimer = null;
+// --- 自动保存防抖计时器 ---
+let autoSaveTimer = null;
 const CONFIG_KEYS = [
     'ccEnableSubtitles',
     'ccTargetLang',
@@ -265,9 +267,28 @@ function updatePreview() {
     }
 }
 
-// 监听一切能导致 UI 变化的事件
+// 监听一切能导致 UI 变化的事件（仅更新预览）
 [enableSubtitlesInput, langSelect, fontSizeInput, englishFontSizeInput, translateColorInput, englishColorInput, bgOpacityInput].forEach(el => {
     el.addEventListener('input', updatePreview);
+});
+
+// --- 自动保存：调节即时保存，300ms 防抖 ---
+function scheduleAutoSave() {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+        saveAndBroadcast('已自动保存。');
+        autoSaveTimer = null;
+    }, 300);
+}
+
+// 数值/颜色/滑块：input 事件触发自动保存
+[fontSizeInput, englishFontSizeInput, bgOpacityInput, translateColorInput, englishColorInput].forEach(el => {
+    el.addEventListener('input', scheduleAutoSave);
+});
+
+// 下拉语言：change 时立即保存
+langSelect.addEventListener('change', () => {
+    saveAndBroadcast('语言设置已保存。');
 });
 
 // 加载现有配置

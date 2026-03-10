@@ -7,7 +7,8 @@
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 20px;
+            /* 上边距单独缩小，左右下保持 20px */
+            padding: 10px 20px 20px;
             background-color: #f7f9fc;
             color: #333;
             max-width: 400px;
@@ -19,11 +20,12 @@
             font-size: 20px;
             font-weight: 600;
             text-align: center;
-            margin-bottom: 24px;
+            margin-top: 0;
+            margin-bottom: 16px;
         }
 
         .setting-group {
-            margin-bottom: 18px;
+            margin-bottom: 16px;
             background: #fff;
             padding: 16px;
             border-radius: 8px;
@@ -89,7 +91,7 @@
         .button-group {
             display: flex;
             gap: 12px;
-            margin-top: 24px;
+            margin-top: 16px;
         }
 
         .button-group button {
@@ -111,12 +113,12 @@
             color: #0f9d58;
             font-weight: bold;
             text-align: center;
-            margin-top: 12px;
-            min-height: 20px;
+            margin-top: 8px;
+            min-height: 0;
         }
 
         .preview-box {
-            margin-top: 24px;
+            margin-top: 16px;
             background: #222;
             padding: 15px;
             border-radius: 8px;
@@ -135,7 +137,7 @@
         }
 
         .export-card {
-            margin-top: 20px;
+            margin-top: 16px;
             background: #fff;
             padding: 16px;
             border-radius: 8px;
@@ -247,7 +249,7 @@
     </div>
 
     <div class="setting-group">
-        <label for="targetLang">翻译目标语言 (翻译成什么语言？)</label>
+        <label for="targetLang">翻译目标语言</label>
         <select id="targetLang">
             <option value="zh-CN">简体中文 (默认)</option>
             <option value="zh-TW">繁体中文</option>
@@ -255,7 +257,7 @@
     </div>
 
     <div class="setting-group">
-        <label>当前视频网页的后台翻译进度 (保存设置后会立即同步到已打开的视频页)</label>
+        <label>后台翻译进度</label>
         <div
             style="background: #e0e0e0; border-radius: 4px; overflow: hidden; height: 26px; position: relative; margin-top: 8px;">
             <div id="optionProgressBar"
@@ -267,7 +269,7 @@
     </div>
 
     <div class="setting-group">
-        <label for="fontSize">中文翻译字幕字号大小 (px)</label>
+        <label for="fontSize">中文字幕字号大小 (px)</label>
         <input type="number" id="fontSize" value="22" min="12" max="64">
     </div>
 
@@ -304,6 +306,12 @@
         <div class="preview-zh" id="previewZh" style="color: #ffffff;">这里是动态为您翻译的中文效果</div>
     </div>
 
+    <div class="button-group">
+        <button id="resetBtn" class="reset-btn" type="button">恢复默认</button>
+        <button id="saveBtn" type="button">保存设置</button>
+    </div>
+    <div id="status"></div>
+
     <div class="export-card">
         <label>导出中英文字幕</label>
         <div class="export-meta" id="exportMeta">
@@ -313,13 +321,7 @@
         <div id="exportStatus" class="muted-status"></div>
     </div>
 
-    <div class="button-group">
-        <button id="resetBtn" class="reset-btn" type="button">恢复默认</button>
-        <button id="saveBtn" type="button">保存设置</button>
-    </div>
-    <div id="status"></div>
-
-    <div style="text-align: center; margin-top: 24px; font-size: 13px; color: #888;">
+    <div style="text-align: center; margin-top: 8px; font-size: 13px; color: #888;">
         Created with ❤️ by yuchenyang | MIT License
     </div>
 
