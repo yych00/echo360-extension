@@ -16,7 +16,9 @@
         ccEnglishFontSize: 20,
         ccTranslateColor: '#ffffff',
         ccEnglishColor: '#ffffff',
-        ccBgOpacity: 0.6
+        ccBgOpacity: 0.6,
+        ccShowChinese: true,
+        ccShowEnglish: true
     };
     let activeConfig = {
         ...BASE_CONFIG,
@@ -276,14 +278,29 @@
             return;
         }
 
+        const showEn = config.ccShowEnglish !== false;
+        const showZh = config.ccShowChinese !== false;
+
+        // 中英文均不显示时，直接隐藏 overlay
+        if (!showEn && !showZh) {
+            overlay.style.display = 'none';
+            overlay.innerHTML = '';
+            return;
+        }
+
         const zhTextRaw = cue.zhText || cue._tempDisplay || '排队翻译中...';
         const enColor = config.ccEnglishColor || '#ffffff';
         const zhColor = config.ccTranslateColor || '#ffffff';
         const enFontSize = config.ccEnglishFontSize || 20;
         const zhFontSize = config.ccFontSize || 22;
         const lineStyle = 'width: 100%; white-space: normal; overflow-wrap: anywhere; word-break: break-word;';
-        const enHtml = `<div data-echo360-role="en" style="${lineStyle} font-size: ${enFontSize}px; opacity: 0.9; color: ${enColor};">${cue.text}</div>`;
-        const zhHtml = `<div data-echo360-role="zh" style="${lineStyle} font-size: ${zhFontSize}px; color: ${zhColor}; font-weight: bold; font-family: 'Microsoft YaHei', sans-serif;">${zhTextRaw}</div>`;
+
+        const enHtml = showEn
+            ? `<div data-echo360-role="en" style="${lineStyle} font-size: ${enFontSize}px; opacity: 0.9; color: ${enColor};">${cue.text}</div>`
+            : '';
+        const zhHtml = showZh
+            ? `<div data-echo360-role="zh" style="${lineStyle} font-size: ${zhFontSize}px; color: ${zhColor}; font-weight: bold; font-family: 'Microsoft YaHei', sans-serif;">${zhTextRaw}</div>`
+            : '';
 
         overlay.innerHTML = enHtml + zhHtml;
         overlay.style.display = 'block';

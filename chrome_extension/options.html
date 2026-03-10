@@ -173,6 +173,41 @@
             font-size: 13px;
         }
 
+        /* --- 字幕显示模式按钮组 --- */
+        .mode-btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border: 2px solid #dadce0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #5f6368;
+            background: #f8f9fa;
+            transition: border-color 0.2s, background 0.2s, color 0.2s;
+            user-select: none;
+            margin-bottom: 0;
+        }
+
+        .mode-btn input[type="checkbox"] {
+            display: none;
+        }
+
+        .mode-btn.active {
+            border-color: #1a73e8;
+            background: #e8f0fe;
+            color: #1a73e8;
+        }
+
         /* Switch CSS */
         .switch-group {
             display: flex;
@@ -246,6 +281,21 @@
             <input type="checkbox" id="enableSubtitles" checked>
             <span class="slider"></span>
         </label>
+    </div>
+
+    <!-- 字幕显示模式：中文 / 英文 / 双语 -->
+    <div class="setting-group">
+        <label>字幕显示内容</label>
+        <div class="mode-btn-group">
+            <label class="mode-btn" id="showChineseBtn">
+                <input type="checkbox" id="showChinese" checked>
+                中文字幕
+            </label>
+            <label class="mode-btn" id="showEnglishBtn">
+                <input type="checkbox" id="showEnglish" checked>
+                英文字幕
+            </label>
+        </div>
     </div>
 
     <div class="setting-group">

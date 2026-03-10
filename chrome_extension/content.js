@@ -3,7 +3,7 @@
  * @description Echo360 CC 字幕助手 Content Script
  */
 
-// 默认配置
+// 默认配置（必须包含所有配置字段，chrome.storage.sync.get 以此对象为 key 列表）
 const FALLBACK_DEFAULT_CONFIG = {
     ccEnableSubtitles: true,
     ccTargetLang: 'zh-CN',
@@ -11,7 +11,9 @@ const FALLBACK_DEFAULT_CONFIG = {
     ccEnglishFontSize: 20,
     ccTranslateColor: '#ffffff',
     ccEnglishColor: '#ffffff',
-    ccBgOpacity: 0.6
+    ccBgOpacity: 0.6,
+    ccShowChinese: true,
+    ccShowEnglish: true
 };
 let DEFAULT_CONFIG = { ...FALLBACK_DEFAULT_CONFIG };
 

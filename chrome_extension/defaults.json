@@ -5,5 +5,7 @@
     "ccEnglishFontSize": 20,
     "ccTranslateColor": "#ffffff",
     "ccEnglishColor": "#ffffff",
-    "ccBgOpacity": 0.6
+    "ccBgOpacity": 0.6,
+    "ccShowChinese": true,
+    "ccShowEnglish": true
 }

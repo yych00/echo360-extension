@@ -18,6 +18,11 @@ const exportBtn = document.getElementById("exportTxtBtn");
 const exportStatusDiv = document.getElementById("exportStatus");
 const exportMetaDiv = document.getElementById("exportMeta");
 const resetBtn = document.getElementById("resetBtn");
+// 字幕显示模式按钮
+const showChineseInput = document.getElementById("showChinese");
+const showEnglishInput = document.getElementById("showEnglish");
+const showChineseBtn = document.getElementById("showChineseBtn");
+const showEnglishBtn = document.getElementById("showEnglishBtn");
 let statusClearTimer = null;
 // --- 自动保存防抖计时器 ---
 let autoSaveTimer = null;
@@ -28,7 +33,9 @@ const CONFIG_KEYS = [
     'ccEnglishFontSize',
     'ccTranslateColor',
     'ccEnglishColor',
-    'ccBgOpacity'
+    'ccBgOpacity',
+    'ccShowChinese',
+    'ccShowEnglish'
 ];
 
 const FALLBACK_DEFAULT_CONFIG = {
@@ -38,7 +45,9 @@ const FALLBACK_DEFAULT_CONFIG = {
     ccEnglishFontSize: 20,
     ccTranslateColor: '#ffffff',
     ccEnglishColor: '#ffffff',
-    ccBgOpacity: 0.6
+    ccBgOpacity: 0.6,
+    ccShowChinese: true,
+    ccShowEnglish: true
 };
 let DEFAULT_CONFIG = { ...FALLBACK_DEFAULT_CONFIG };
 
@@ -202,7 +211,9 @@ function buildCurrentConfig() {
         ccEnglishFontSize: Number(englishFontSizeInput.value) || DEFAULT_CONFIG.ccEnglishFontSize,
         ccTranslateColor: translateColorInput.value,
         ccEnglishColor: englishColorInput.value,
-        ccBgOpacity: Number(bgOpacityInput.value)
+        ccBgOpacity: Number(bgOpacityInput.value),
+        ccShowChinese: showChineseInput.checked,
+        ccShowEnglish: showEnglishInput.checked
     };
 }
 
@@ -222,6 +233,10 @@ function applyConfigToForm(config) {
     translateColorInput.value = config.ccTranslateColor;
     englishColorInput.value = config.ccEnglishColor;
     bgOpacityInput.value = config.ccBgOpacity;
+    // 字幕显示模式按钮
+    showChineseInput.checked = config.ccShowChinese !== false;
+    showEnglishInput.checked = config.ccShowEnglish !== false;
+    syncModeBtnStyle();
     updatePreview();
 }
 
@@ -258,18 +273,29 @@ function updatePreview() {
     previewBox.style.boxShadow = opVal === 0 ? 'none' : 'inset 0 2px 5px rgba(0, 0, 0, 0.5)';
 
     // 显示或隐藏字幕预览
-    if (!enableSubtitlesInput.checked) {
-        previewEn.style.display = 'none';
-        previewZh.style.display = 'none';
-    } else {
-        previewEn.style.display = 'block';
-        previewZh.style.display = 'block';
-    }
+    const masterOn = enableSubtitlesInput.checked;
+    previewEn.style.display = (masterOn && showEnglishInput.checked) ? 'block' : 'none';
+    previewZh.style.display = (masterOn && showChineseInput.checked) ? 'block' : 'none';
+}
+
+// 同步显示模式按钮的 active 样式
+function syncModeBtnStyle() {
+    showChineseBtn.classList.toggle('active', showChineseInput.checked);
+    showEnglishBtn.classList.toggle('active', showEnglishInput.checked);
 }
 
 // 监听一切能导致 UI 变化的事件（仅更新预览）
 [enableSubtitlesInput, langSelect, fontSizeInput, englishFontSizeInput, translateColorInput, englishColorInput, bgOpacityInput].forEach(el => {
     el.addEventListener('input', updatePreview);
+});
+
+// 显示模式按钮：点击切换并同步样式，立即保存（不防抖，同 enableSubtitles）
+[showChineseInput, showEnglishInput].forEach(el => {
+    el.addEventListener('change', () => {
+        syncModeBtnStyle();
+        updatePreview();
+        saveAndBroadcast('已自动保存。');
+    });
 });
 
 // --- 自动保存：调节即时保存，300ms 防抖 ---
