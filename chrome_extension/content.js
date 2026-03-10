@@ -36,31 +36,16 @@ async function loadDefaultConfig() {
 }
 
 function syncConfigToPage(config) {
-    injectConfigToPage(config);
+    // 通过 DOM 属性传递配置到 inject.js（inject.js 轮询读取，100% 可靠）
     document.documentElement.setAttribute(
         'data-echo360-cc-config',
         JSON.stringify(config)
     );
+    // 同时派发 CustomEvent，供 inject.js 的事件监听器即时响应（无需再注入 <script> 标签）
+    window.dispatchEvent(new CustomEvent('echo360-cc-config-updated', {
+        detail: config
+    }));
 }
-
-function injectConfigToPage(config) {
-    const configScript = document.createElement('script');
-    configScript.textContent = `
-        window.__ECHO360_CC_CONFIG__ = ${JSON.stringify(config)};
-        window.dispatchEvent(new CustomEvent('echo360-cc-config-updated', {
-            detail: window.__ECHO360_CC_CONFIG__
-        }));
-    `;
-    (document.head || document.documentElement).appendChild(configScript);
-    configScript.remove();
-}
-
-// 监听来自 options 页面的配置变更消息，并立即写入 DOM 属性供 inject.js 读取
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'CONFIG_CHANGED' && msg.config) {
-        syncConfigToPage(msg.config);
-    }
-});
 
 // 监听从网站里的 inject.js 传出来的进度消息并向外透传给插件 options
 window.addEventListener('message', (event) => {

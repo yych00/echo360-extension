@@ -10,8 +10,7 @@
     },
     "permissions": [
         "storage",
-        "activeTab",
-        "tabs"
+        "activeTab"
     ],
     "host_permissions": [
         "*://echo360.net.au/*",

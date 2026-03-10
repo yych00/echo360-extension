@@ -302,33 +302,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadExportState();
 });
 
-// 将配置直接发送给所有匹配的标签页 (content script)
-function broadcastConfigToTabs(config) {
-    const urlPatterns = [
-        '*://echo360.net.au/*',
-        '*://canvas.lms.unimelb.edu.au/*'
-    ];
-    urlPatterns.forEach(pattern => {
-        chrome.tabs.query({ url: pattern }, (tabs) => {
-            if (chrome.runtime.lastError) return;
-            (tabs || []).forEach(tab => {
-                chrome.tabs.sendMessage(tab.id, {
-                    type: 'CONFIG_CHANGED',
-                    config: config
-                }, () => {
-                    void chrome.runtime.lastError;
-                });
-            });
-        });
-    });
-}
-
-// 执行保存并广播配置的核心逻辑
+// 执行保存的核心逻辑（配置变更后 content.js 通过 storage.onChanged 自动同步到视频页）
 function saveAndBroadcast(statusMsg) {
     const newConfig = buildCurrentConfig();
-    persistConfig(newConfig, (resolvedConfig) => {
-        broadcastConfigToTabs(resolvedConfig);
-        showStatus(statusMsg || '设置已保存，并已立即应用到已打开的视频页。');
+    persistConfig(newConfig, () => {
+        showStatus(statusMsg || '设置已保存。');
     });
 }
 
@@ -349,8 +327,7 @@ resetBtn.addEventListener('click', () => {
     chrome.storage.sync.remove(CONFIG_KEYS, () => {
         getStoredConfig((resolvedConfig) => {
             applyConfigToForm(resolvedConfig);
-            broadcastConfigToTabs(resolvedConfig);
-            showStatus('已恢复默认设置，并已立即应用到已打开的视频页。');
+            showStatus('已恢复默认设置。');
         });
     });
 });
