@@ -527,77 +527,62 @@
         }
     }
 
-    // ============== 拦截 fetch 请求以获取字幕数据 ==============
-    const originalFetch = window.fetch;
-    window.fetch = async function (...args) {
-        const response = await originalFetch.apply(this, args);
-        const url = (typeof args[0] === 'string') ? args[0] : args[0]?.url;
+    // ============== 主动发现字幕 API 并自行请求（无需 hook 原生 API）==============
 
-        // 获取 transcript 的 API (Echo360数据)
-        if (url && url.includes('/transcript')) {
-            console.log("[Echo360 CC Plugin] Found Transcript API Fetch:", url);
-            try {
-                const clonedRes = response.clone();
-                const textData = await clonedRes.text();
-                let parsedData = null;
+    // 已请求过的 URL 去重，防止重复处理
+    const _fetchedTranscriptUrls = new Set();
 
-                try { parsedData = JSON.parse(textData); }
-                catch (e) { parsedData = textData; } // 可能是 VTT
+    async function fetchTranscriptFromUrl(url) {
+        if (_fetchedTranscriptUrls.has(url)) return;
+        _fetchedTranscriptUrls.add(url);
 
-                const cues = extractCuesFromPayload(parsedData);
-                if (cues && cues.length > 0) {
-                    console.log(`[Echo360 CC Plugin] Successfully parsed ${cues.length} subtitles from Fetch!`);
-                    transcriptData = mergeSentences(cues);
-                    const initialFocusIndex = getCueIndexByTime(transcriptData, getCurrentPlaybackTimeMs());
-                    broadcastTranscriptExport();
-                    injectSubtitles();
-                    queueFocusedTranslation(transcriptData, initialFocusIndex);
-                } else {
-                    console.error("[Echo360 CC Plugin] Parsed empty subtitles. Raw data preview:", textData.substring(0, 100));
-                }
-            } catch (e) {
-                console.error("[Echo360 CC Plugin] Failed to process Fetch data:", e);
+        console.log('[Echo360 CC Plugin] Actively fetching transcript from:', url);
+        try {
+            // credentials: include 确保携带登录 Cookie，与页面原请求行为一致
+            const res = await fetch(url, { credentials: 'include' });
+            if (!res.ok) {
+                console.warn('[Echo360 CC Plugin] Transcript fetch failed:', res.status);
+                return;
             }
+
+            const textData = await res.text();
+            let parsedData = null;
+            try { parsedData = JSON.parse(textData); }
+            catch (e) { parsedData = textData; } // 可能是 VTT 格式
+
+            const cues = extractCuesFromPayload(parsedData);
+            if (cues && cues.length > 0) {
+                console.log(`[Echo360 CC Plugin] Successfully fetched ${cues.length} subtitles!`);
+                transcriptData = mergeSentences(cues);
+                const initialFocusIndex = getCueIndexByTime(transcriptData, getCurrentPlaybackTimeMs());
+                broadcastTranscriptExport();
+                injectSubtitles();
+                queueFocusedTranslation(transcriptData, initialFocusIndex);
+            } else {
+                console.error('[Echo360 CC Plugin] Parsed empty subtitles from:', url, textData.substring(0, 100));
+            }
+        } catch (e) {
+            console.error('[Echo360 CC Plugin] Failed to fetch transcript:', url, e);
         }
-        return response;
-    };
+    }
 
-    // ============== 拦截 XHR 请求 ==============
-    const originalXhrOpen = XMLHttpRequest.prototype.open;
-    const originalXhrSend = XMLHttpRequest.prototype.send;
+    // 检查页面已有的 performance 记录（适用于插件比 Echo360 晚加载的情况）
+    function checkExistingPerformanceEntries() {
+        performance.getEntries()
+            .filter(e => e.name && e.name.includes('/transcript'))
+            .forEach(e => fetchTranscriptFromUrl(e.name));
+    }
 
-    XMLHttpRequest.prototype.open = function (method, url) {
-        this._reqUrl = url;
-        return originalXhrOpen.apply(this, arguments);
-    };
+    // 用 PerformanceObserver 监听未来的网络请求（echo360 播放时主动请求字幕接口）
+    const _transcriptObserver = new PerformanceObserver((list) => {
+        list.getEntries()
+            .filter(e => e.name && e.name.includes('/transcript'))
+            .forEach(e => fetchTranscriptFromUrl(e.name));
+    });
+    _transcriptObserver.observe({ entryTypes: ['resource'] });
 
-    XMLHttpRequest.prototype.send = function () {
-        this.addEventListener('load', function () {
-            if (this._reqUrl && this._reqUrl.includes('/transcript')) {
-                console.log("[Echo360 CC Plugin] Found Transcript API XHR:", this._reqUrl);
-                try {
-                    let parsedData = null;
-                    try { parsedData = JSON.parse(this.responseText); }
-                    catch (e) { parsedData = this.responseText; }
-
-                    const cues = extractCuesFromPayload(parsedData);
-                    if (cues && cues.length > 0) {
-                        console.log(`[Echo360 CC Plugin] Successfully parsed ${cues.length} subtitles from XHR!`);
-                        transcriptData = mergeSentences(cues);
-                        const initialFocusIndex = getCueIndexByTime(transcriptData, getCurrentPlaybackTimeMs());
-                        broadcastTranscriptExport();
-                        injectSubtitles();
-                        queueFocusedTranslation(transcriptData, initialFocusIndex);
-                    } else {
-                        console.error("[Echo360 CC Plugin] Parsed empty subtitles from XHR. Raw data preview:", this.responseText.substring(0, 100));
-                    }
-                } catch (e) {
-                    console.error("[Echo360 CC Plugin] Failed to process XHR data:", e);
-                }
-            }
-        });
-        return originalXhrSend.apply(this, arguments);
-    };
+    // 立即扫描已有记录
+    checkExistingPerformanceEntries();
 
     // ==========================================
     // 核心引擎：定时器轮询模式 (终极防御覆盖和React重构)
