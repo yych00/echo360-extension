@@ -5,7 +5,24 @@
 (function () {
     'use strict';
 
-    console.log("[Echo360 CC Plugin] Injection script loaded and listening for subtitle API...");
+    // ========= 可控 Debug 日志 =========
+    const DEBUG = false;
+    const log = {
+        info: (...args) => { if (DEBUG) console.log('[Echo360 CC]', ...args); },
+        warn: (...args) => { if (DEBUG) console.warn('[Echo360 CC]', ...args); },
+        error: (...args) => { console.error('[Echo360 CC]', ...args); } // 错误始终输出
+    };
+
+    // ========= targetLang 白名单校验 =========
+    const ALLOWED_LANGS = new Set([
+        'zh-CN', 'zh-TW', 'ja', 'ko', 'fr', 'de', 'es', 'pt', 'ru', 'ar',
+        'hi', 'vi', 'th', 'id', 'ms', 'it', 'nl', 'pl', 'tr', 'uk', 'en'
+    ]);
+    function sanitizeLang(lang) {
+        return ALLOWED_LANGS.has(lang) ? lang : 'zh-CN';
+    }
+
+    log.info('Injection script loaded and listening for subtitle API...');
 
     let transcriptData = null;
     let subtitleInjected = false;
@@ -143,7 +160,7 @@
             }
         }
 
-        console.log(`[Echo360 CC Plugin] Sentence Engine: Combined ${cues.length} fragments into ${merged.length} coherent sentences.`);
+        log.info(`Sentence Engine: Combined ${cues.length} fragments into ${merged.length} coherent sentences.`);
         return merged;
     }
 
@@ -270,7 +287,7 @@
 
     function getTargetLang() {
         const config = activeConfig || window.__ECHO360_CC_CONFIG__ || { ccTargetLang: 'zh-CN' };
-        return config.ccTargetLang || 'zh-CN';
+        return sanitizeLang(config.ccTargetLang || 'zh-CN');
     }
 
     function renderOverlaySubtitle(overlay, cue, config) {
@@ -356,7 +373,7 @@
 
         if (transcriptData && activeConfig.ccTargetLang && window._LAST_CC_LANG !== activeConfig.ccTargetLang) {
             const currentTimeMs = getCurrentPlaybackTimeMs();
-            console.log(`[Echo360 CC] Immediate config apply: language changed from ${window._LAST_CC_LANG} to ${activeConfig.ccTargetLang}.`);
+            log.info(`Immediate config apply: language changed from ${window._LAST_CC_LANG} to ${activeConfig.ccTargetLang}.`);
             transcriptData.forEach(cue => {
                 delete cue.zhText;
                 delete cue._tempDisplay;
@@ -447,7 +464,7 @@
             delete cue._tempDisplay;
             return true;
         } catch (e) {
-            console.error('[Echo360 CC Plugin] Translate failed for cue:', cue.text, e);
+            log.error('Translate failed for cue:', cue.text, e);
             cue.zhText = '[网络限制]';
             return false;
         } finally {
@@ -488,7 +505,7 @@
 
             return true;
         } catch (error) {
-            console.warn('[Echo360 CC Plugin] Batch translate failed, falling back to sequential requests.', error);
+            log.warn('Batch translate failed, falling back to sequential requests.', error);
 
             for (const cue of cuesToTranslate) {
                 cue._isTranslating = false;
@@ -607,7 +624,7 @@
 
                 if (batch.length === 0) {
                     sendProgress(100, buildCurrentProgressText(translationState.focusIndex, '已缓存'));
-                    console.log('[Echo360 CC Plugin] Priority translation queue drained.');
+                    log.info('Priority translation queue drained.');
                     break;
                 }
 
@@ -642,7 +659,7 @@
             translationState.targetLang = targetLang;
             translationState.lastFastLaneKey = '';
             translationState.fastLanePending = null;
-            console.log(`[Echo360 CC Plugin] Priority Translation Queue started for ${cues.length} sentences.`);
+            log.info(`Priority Translation Queue started for ${cues.length} sentences.`);
         }
 
         if (typeof focusIndex === 'number' && focusIndex >= 0) {
@@ -673,12 +690,12 @@
         if (_fetchedTranscriptUrls.has(url)) return;
         _fetchedTranscriptUrls.add(url);
 
-        console.log('[Echo360 CC Plugin] Actively fetching transcript from:', url);
+        log.info('Actively fetching transcript from:', url);
         try {
             // credentials: include 确保携带登录 Cookie，与页面原请求行为一致
             const res = await fetch(url, { credentials: 'include' });
             if (!res.ok) {
-                console.warn('[Echo360 CC Plugin] Transcript fetch failed:', res.status);
+                log.warn('Transcript fetch failed:', res.status);
                 return;
             }
 
@@ -689,17 +706,17 @@
 
             const cues = extractCuesFromPayload(parsedData);
             if (cues && cues.length > 0) {
-                console.log(`[Echo360 CC Plugin] Successfully fetched ${cues.length} subtitles!`);
+                log.info(`Successfully fetched ${cues.length} subtitles!`);
                 transcriptData = mergeSentences(cues);
                 const initialFocusIndex = getCueIndexByTime(transcriptData, getCurrentPlaybackTimeMs());
                 broadcastTranscriptExport();
                 injectSubtitles();
                 queueFocusedTranslation(transcriptData, initialFocusIndex);
             } else {
-                console.error('[Echo360 CC Plugin] Parsed empty subtitles from:', url, textData.substring(0, 100));
+                log.warn('Parsed empty subtitles from:', url, textData.substring(0, 100));
             }
         } catch (e) {
-            console.error('[Echo360 CC Plugin] Failed to fetch transcript:', url, e);
+            log.error('Failed to fetch transcript:', url, e);
         }
     }
 
@@ -754,7 +771,7 @@
     function injectSubtitles() {
         if (!transcriptData) return;
 
-        console.log(`[Echo360 CC Plugin] Subtitle data stored (${transcriptData.length} cues). Starting rendering engine...`);
+        log.info(`Subtitle data stored (${transcriptData.length} cues). Starting rendering engine...`);
 
         if (overlayLoopInterval) clearInterval(overlayLoopInterval);
 
@@ -771,7 +788,7 @@
             const videos = findAllVideos(document);
 
             if (videos.length === 0) {
-                if (debugTick % 30 === 0) console.log("[Echo360 CC Debug] 渲染引擎处于活跃状态，但没有在当前帧 (Frame) 或 Shadow DOM 中找到 <video> 节点。当前页面可能只是一个外层的 iframe。");
+                if (debugTick % 30 === 0) log.info('渲染引擎处于活跃状态，但没有在当前帧中找到 <video> 节点。');
                 return;
             }
 
@@ -781,7 +798,7 @@
 
             // 检查语言是否发生变更，如果变更了，清空翻译缓存触发重新翻译
             if (config.ccTargetLang && window._LAST_CC_LANG !== config.ccTargetLang) {
-                console.log(`[Echo360 CC] Language changed from ${window._LAST_CC_LANG} to ${config.ccTargetLang}, flushing translations...`);
+                log.info(`Language changed from ${window._LAST_CC_LANG} to ${config.ccTargetLang}, flushing translations...`);
                 transcriptData.forEach(cue => {
                     delete cue.zhText;
                     delete cue._tempDisplay;
@@ -830,7 +847,7 @@
                     box-sizing: border-box;
                 `;
                 document.body.appendChild(overlay);
-                console.log("[Echo360 CC Debug] CC Overlay 元素已成功创建并附加到 body!");
+                log.info('CC Overlay 元素已成功创建并附加到 body.');
             }
 
             // 响应最新的背景透明度设置
@@ -897,7 +914,7 @@
                 const currentTextObj = currentTextIndex >= 0 ? transcriptData[currentTextIndex] : null;
 
                 if (debugTick % 30 === 0) {
-                    console.log(`[Echo360 CC Debug] 状态存活 -> 视频数: ${videos.length} | 毫秒: ${Math.floor(currentTimeMs)} | 中文状态: ${currentTextObj?.zhText || '未翻译'} | 命中: ${currentTextObj?.text || "None"}`);
+                    log.info(`状态存活 -> 视频数: ${videos.length} | 毫秒: ${Math.floor(currentTimeMs)} | 中文状态: ${currentTextObj?.zhText || '未翻译'} | 命中: ${currentTextObj?.text || 'None'}`);
                 }
 
                 if (currentTextObj && currentTextObj.text) {
