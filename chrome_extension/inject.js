@@ -24,17 +24,21 @@
         ...BASE_CONFIG,
         ...(window.__ECHO360_CC_CONFIG__ || {})
     };
-    const TRANSLATION_BATCH_SIZE = 8;
-    const FORWARD_PRIORITY_RANGE = 18;
-    const BACKWARD_PRIORITY_RANGE = 6;
-    const PRELOAD_AHEAD_COUNT = 2;
-    const TRANSLATION_COOLDOWN_MS = 100;
+    const TRANSLATION_BATCH_SIZE = 4; // 每轮合并翻译的字幕条数
+    const FORWARD_PRIORITY_RANGE = 10; // 优先向后预翻译的句子数量
+    const TRANSLATION_COOLDOWN_MS = 300; // 每轮翻译批次之间的等待时间（毫秒）
+    const TRANSLATION_BATCH_SEPARATOR = '\uE000\uE001\uE000'; // 批量翻译时用于拆分句子的分隔符
+    const FAST_LANE_SINGLE_COUNT = 4; // 跳转到未缓存位置时，并发补翻的单句数量
+    const FAST_LANE_SEEK_THRESHOLD = 4; // 视为跳转到其他位置的最小句子跨度
     const translationState = {
         runId: 0,
         cues: null,
         focusIndex: -1,
         processing: false,
-        targetLang: 'zh-CN'
+        targetLang: 'zh-CN',
+        fastLaneProcessing: false,
+        fastLanePending: null,
+        lastFastLaneKey: ''
     };
 
     // ========= 兼容性极强的数据解析引擎 =========
@@ -423,20 +427,6 @@
         return targetVideo ? targetVideo.currentTime * 1000 : 0;
     }
 
-    function hasMissingTranslationsAroundIndex(cues, centerIndex, aheadCount) {
-        if (!cues || cues.length === 0 || centerIndex < 0) return false;
-
-        const lastIndex = Math.min(cues.length - 1, centerIndex + aheadCount);
-        for (let i = centerIndex; i <= lastIndex; i++) {
-            const cue = cues[i];
-            if (cue && cue.text && cue.zhText === undefined && !cue._isTranslating) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     async function translateCue(cue, targetLang) {
         if (!cue || !cue.text || cue.zhText !== undefined || cue._isTranslating) return false;
 
@@ -465,6 +455,54 @@
         }
     }
 
+    async function translateCueBatch(batch, targetLang) {
+        const cuesToTranslate = (batch || []).filter(cue => cue && cue.text && cue.zhText === undefined && !cue._isTranslating);
+        if (cuesToTranslate.length === 0) return false;
+
+        cuesToTranslate.forEach(cue => {
+            cue._isTranslating = true;
+        });
+
+        try {
+            const requestText = cuesToTranslate.map(cue => cue.text).join(TRANSLATION_BATCH_SEPARATOR);
+            const gtUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(requestText)}`;
+            const res = await fetch(gtUrl);
+            const data = await res.json();
+
+            let transText = '';
+            if (data && data[0]) {
+                data[0].forEach(t => {
+                    if (t[0]) transText += t[0];
+                });
+            }
+
+            const translatedParts = transText.split(TRANSLATION_BATCH_SEPARATOR);
+            if (translatedParts.length !== cuesToTranslate.length) {
+                throw new Error(`Batch translation split mismatch: expected ${cuesToTranslate.length}, got ${translatedParts.length}`);
+            }
+
+            cuesToTranslate.forEach((cue, index) => {
+                cue.zhText = translatedParts[index] || '[翻译为空]';
+                delete cue._tempDisplay;
+            });
+
+            return true;
+        } catch (error) {
+            console.warn('[Echo360 CC Plugin] Batch translate failed, falling back to sequential requests.', error);
+
+            for (const cue of cuesToTranslate) {
+                cue._isTranslating = false;
+                await translateCue(cue, targetLang);
+            }
+
+            return false;
+        } finally {
+            cuesToTranslate.forEach(cue => {
+                cue._isTranslating = false;
+            });
+        }
+    }
+
     function buildPriorityIndexes(cues, focusIndex) {
         const orderedIndexes = [];
         const seenIndexes = new Set();
@@ -484,9 +522,8 @@
         if (focusIndex >= 0) {
             pushIndex(focusIndex);
             pushRange(focusIndex + 1, Math.min(cues.length - 1, focusIndex + FORWARD_PRIORITY_RANGE));
-            pushRange(Math.max(0, focusIndex - BACKWARD_PRIORITY_RANGE), focusIndex - 1);
             pushRange(focusIndex + FORWARD_PRIORITY_RANGE + 1, cues.length - 1);
-            pushRange(0, Math.max(-1, focusIndex - BACKWARD_PRIORITY_RANGE - 1));
+            pushRange(0, focusIndex - 1);
         } else {
             pushRange(0, cues.length - 1);
         }
@@ -508,6 +545,57 @@
         return batch;
     }
 
+    function shouldUseFastLane(cues, previousFocusIndex, nextFocusIndex) {
+        if (!cues || nextFocusIndex < 0 || previousFocusIndex < 0) return false;
+        if (Math.abs(nextFocusIndex - previousFocusIndex) < FAST_LANE_SEEK_THRESHOLD) return false;
+
+        const focusCue = cues[nextFocusIndex];
+        return !!(focusCue && focusCue.text && focusCue.zhText === undefined && !focusCue._isTranslating);
+    }
+
+    async function runFastLaneTranslation(cues, focusIndex, targetLang, runId) {
+        translationState.fastLaneProcessing = true;
+
+        try {
+            const singles = pickNextBatch(cues, focusIndex, FAST_LANE_SINGLE_COUNT);
+            if (singles.length > 0) {
+                await Promise.all(singles.map(cue => translateCue(cue, targetLang)));
+                broadcastTranscriptExport();
+            }
+        } finally {
+            translationState.fastLaneProcessing = false;
+
+            const pending = translationState.fastLanePending;
+            translationState.fastLanePending = null;
+
+            if (pending && pending.runId === translationState.runId) {
+                void runFastLaneTranslation(pending.cues, pending.focusIndex, pending.targetLang, pending.runId);
+            }
+        }
+    }
+
+    function requestFastLaneTranslation(cues, focusIndex, targetLang, runId) {
+        const requestKey = `${runId}:${focusIndex}`;
+        if (translationState.lastFastLaneKey === requestKey) return;
+
+        translationState.lastFastLaneKey = requestKey;
+
+        if (translationState.fastLaneProcessing) {
+            translationState.fastLanePending = { cues, focusIndex, targetLang, runId };
+            return;
+        }
+
+        void runFastLaneTranslation(cues, focusIndex, targetLang, runId);
+    }
+
+    function buildCurrentProgressText(focusIndex, statusText) {
+        if (typeof focusIndex === 'number' && focusIndex >= 0) {
+            return `当前第 ${focusIndex + 1} 句${statusText}`;
+        }
+
+        return `当前位置${statusText}`;
+    }
+
     async function processTranslationQueue(runId) {
         if (translationState.processing) return;
         translationState.processing = true;
@@ -518,19 +606,18 @@
                 const batch = pickNextBatch(cues, translationState.focusIndex, TRANSLATION_BATCH_SIZE);
 
                 if (batch.length === 0) {
-                    sendProgress(100, '✅ 已完成翻译');
+                    sendProgress(100, buildCurrentProgressText(translationState.focusIndex, '已缓存'));
                     console.log('[Echo360 CC Plugin] Priority translation queue drained.');
                     break;
                 }
 
-                await Promise.all(batch.map(cue => translateCue(cue, translationState.targetLang)));
+                await translateCueBatch(batch, translationState.targetLang);
 
                 broadcastTranscriptExport();
 
                 const translatedCount = cues.filter(cue => cue.zhText !== undefined).length;
                 const percent = Math.min(100, Math.round((translatedCount / cues.length) * 100));
-                const focusLabel = translationState.focusIndex >= 0 ? `第 ${translationState.focusIndex + 1} 句附近优先中` : '按顺序预加载中';
-                sendProgress(percent, `🧠 ${focusLabel}，向后补齐字幕`);
+                sendProgress(percent, buildCurrentProgressText(translationState.focusIndex, '处理中'));
 
                 await new Promise(resolve => setTimeout(resolve, TRANSLATION_COOLDOWN_MS));
             }
@@ -547,19 +634,29 @@
 
         const targetLang = getTargetLang();
         const isNewTask = translationState.cues !== cues || translationState.targetLang !== targetLang;
+        const previousFocusIndex = translationState.focusIndex;
 
         if (isNewTask) {
             translationState.runId += 1;
             translationState.cues = cues;
             translationState.targetLang = targetLang;
-            sendProgress(0, '🔄 正在翻译');
+            translationState.lastFastLaneKey = '';
+            translationState.fastLanePending = null;
             console.log(`[Echo360 CC Plugin] Priority Translation Queue started for ${cues.length} sentences.`);
         }
 
         if (typeof focusIndex === 'number' && focusIndex >= 0) {
             translationState.focusIndex = focusIndex;
+
+            if (shouldUseFastLane(cues, previousFocusIndex, focusIndex)) {
+                requestFastLaneTranslation(cues, focusIndex, targetLang, translationState.runId);
+            }
         } else if (isNewTask) {
             translationState.focusIndex = 0;
+        }
+
+        if (isNewTask) {
+            sendProgress(0, buildCurrentProgressText(translationState.focusIndex, '处理中'));
         }
 
         if (!translationState.processing) {
@@ -804,13 +901,11 @@
                 }
 
                 if (currentTextObj && currentTextObj.text) {
-                    const shouldRefreshLookahead = hasMissingTranslationsAroundIndex(transcriptData, currentTextIndex, PRELOAD_AHEAD_COUNT);
-
                     if (currentTextObj.zhText === undefined) {
                         currentTextObj._tempDisplay = '正在优先翻译当前片段...';
                     }
 
-                    if (shouldRefreshLookahead || translationState.focusIndex !== currentTextIndex || !translationState.processing) {
+                    if (translationState.focusIndex !== currentTextIndex || !translationState.processing) {
                         queueFocusedTranslation(transcriptData, currentTextIndex);
                     }
 

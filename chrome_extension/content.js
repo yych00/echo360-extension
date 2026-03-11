@@ -53,11 +53,22 @@ function syncConfigToPage(config) {
 window.addEventListener('message', (event) => {
     if (event.source === window && event.data && event.data.source === 'echo360-cc-inject') {
         if (event.data.type === 'PROGRESS_UPDATE') {
-            try {
-                chrome.runtime.sendMessage(event.data, () => {
-                    void chrome.runtime.lastError;
-                });
-            } catch (e) { }
+            const progressPayload = {
+                percent: Number(event.data.percent) || 0,
+                msg: event.data.msg || '',
+                updatedAt: new Date().toISOString()
+            };
+
+            chrome.storage.local.set({ echo360ProgressState: progressPayload }, () => {
+                try {
+                    chrome.runtime.sendMessage({
+                        type: 'PROGRESS_UPDATE',
+                        ...progressPayload
+                    }, () => {
+                        void chrome.runtime.lastError;
+                    });
+                } catch (e) { }
+            });
         }
 
         if (event.data.type === 'TRANSCRIPT_EXPORT_UPDATE' && event.data.payload) {

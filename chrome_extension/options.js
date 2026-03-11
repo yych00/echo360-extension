@@ -71,16 +71,35 @@ async function loadDefaultConfig() {
     return DEFAULT_CONFIG;
 }
 
+function updateProgressUi(progress) {
+    const bar = document.getElementById('optionProgressBar');
+    const txt = document.getElementById('optionProgressText');
+    if (!bar || !txt) return;
+
+    if (!progress) {
+        bar.style.width = '0%';
+        bar.style.background = '#1a73e8';
+        txt.innerText = '暂无进度';
+        return;
+    }
+
+    const percent = Math.max(0, Math.min(100, Number(progress.percent) || 0));
+    const message = progress.msg || '暂无进度';
+    bar.style.width = percent + '%';
+    txt.innerText = message + (percent < 100 ? ` (${percent}%)` : '');
+    bar.style.background = percent === 100 ? '#0f9d58' : '#1a73e8';
+}
+
+function loadProgressState() {
+    chrome.storage.local.get({ echo360ProgressState: null }, (items) => {
+        updateProgressUi(items.echo360ProgressState);
+    });
+}
+
 // 监听从 content.js 发出的实时进度广播
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'PROGRESS_UPDATE') {
-        const bar = document.getElementById('optionProgressBar');
-        const txt = document.getElementById('optionProgressText');
-        if (bar && txt) {
-            bar.style.width = msg.percent + '%';
-            txt.innerText = msg.msg + (msg.percent < 100 ? ` (${msg.percent}%)` : '');
-            bar.style.background = msg.percent === 100 ? '#0f9d58' : '#1a73e8';
-        }
+        updateProgressUi(msg);
     }
 
     if (msg.type === 'TRANSCRIPT_EXPORT_UPDATED') {
@@ -334,6 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         applyConfigToForm(items);
     });
 
+    loadProgressState();
     loadExportState();
 });
 
