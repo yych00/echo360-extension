@@ -165,7 +165,7 @@
     }
 
     function sendProgress(percent, msg) {
-        window.postMessage({ source: 'echo360-cc-inject', type: 'PROGRESS_UPDATE', percent, msg }, '*');
+        window.postMessage({ source: 'echo360-cc-inject', type: 'PROGRESS_UPDATE', percent, msg }, location.origin);
     }
 
     function normalizeTitleText(text) {
@@ -282,7 +282,7 @@
             source: 'echo360-cc-inject',
             type: 'TRANSCRIPT_EXPORT_UPDATE',
             payload
-        }, '*');
+        }, location.origin);
     }
 
     function getTargetLang() {

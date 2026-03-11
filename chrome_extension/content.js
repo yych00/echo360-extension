@@ -51,7 +51,7 @@ function syncConfigToPage(config) {
 
 // 监听从网站里的 inject.js 传出来的进度消息并向外透传给插件 options
 window.addEventListener('message', (event) => {
-    if (event.source === window && event.data && event.data.source === 'echo360-cc-inject') {
+    if (event.source === window && event.origin === location.origin && event.data && event.data.source === 'echo360-cc-inject') {
         if (event.data.type === 'PROGRESS_UPDATE') {
             const progressPayload = {
                 percent: Number(event.data.percent) || 0,

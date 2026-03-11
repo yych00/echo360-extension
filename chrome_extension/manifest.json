@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Echo360 CC 字幕助手",
-    "version": "1.0",
+    "version": "1.0.0",
     "author": "yuchenyang",
     "description": "为 Echo360 视频课程自动加载 CC 字幕，并提供实时中文翻译显示。",
     "icons": {
@@ -10,7 +10,10 @@
         "48": "icons/icon48.png",
         "128": "icons/icon128.png"
     },
-    "options_page": "options.html",
+    "options_ui": {
+        "page": "options.html",
+        "open_in_tab": false
+    },
     "action": {
         "default_popup": "options.html",
         "default_icon": {
@@ -42,7 +45,8 @@
     "web_accessible_resources": [
         {
             "resources": [
-                "inject.js"
+                "inject.js",
+                "defaults.json"
             ],
             "matches": [
                 "*://echo360.net.au/*",
