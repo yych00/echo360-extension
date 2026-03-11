@@ -60,6 +60,15 @@
     let translationRequestSeq = 0;
     const pendingTranslationRequests = new Map();
 
+    function buildTranslationError(data, fallbackMessage) {
+        const error = new Error(data?.error || fallbackMessage || 'Translation request failed.');
+        error.code = data?.errorCode || 'TRANSLATE_UNKNOWN_ERROR';
+        error.category = data?.errorCategory || 'unknown';
+        error.retryable = !!data?.retryable;
+        error.status = Number(data?.status) || 0;
+        return error;
+    }
+
     window.addEventListener('message', (event) => {
         if (event.source !== window || event.origin !== location.origin) return;
 
@@ -79,7 +88,7 @@
             return;
         }
 
-        pendingRequest.reject(new Error(data.error || 'Translation request failed.'));
+        pendingRequest.reject(buildTranslationError(data, 'Translation request failed.'));
     });
 
     function requestBackgroundTranslation(type, payload) {
@@ -87,7 +96,13 @@
             const requestId = `translate-${Date.now()}-${++translationRequestSeq}`;
             const timeoutId = setTimeout(() => {
                 pendingTranslationRequests.delete(requestId);
-                reject(new Error('Translation request timed out.'));
+                reject(buildTranslationError({
+                    error: 'Translation request timed out.',
+                    errorCode: 'TRANSLATE_BRIDGE_TIMEOUT',
+                    errorCategory: 'bridge',
+                    retryable: true,
+                    status: 0
+                }));
             }, 15000);
 
             pendingTranslationRequests.set(requestId, { resolve, reject, timeoutId });
@@ -501,7 +516,13 @@
             delete cue._tempDisplay;
             return true;
         } catch (e) {
-            log.error('Translate failed for cue:', cue.text, e);
+            log.error('Translate failed for cue:', cue.text, {
+                message: e?.message || String(e),
+                code: e?.code || 'TRANSLATE_UNKNOWN_ERROR',
+                category: e?.category || 'unknown',
+                retryable: !!e?.retryable,
+                status: e?.status || 0
+            });
             cue.zhText = '[网络限制]';
             return false;
         } finally {
@@ -535,7 +556,13 @@
 
             return true;
         } catch (error) {
-            log.warn('Batch translate failed, falling back to sequential requests.', error);
+            log.warn('Batch translate failed, falling back to sequential requests.', {
+                message: error?.message || String(error),
+                code: error?.code || 'TRANSLATE_UNKNOWN_ERROR',
+                category: error?.category || 'unknown',
+                retryable: !!error?.retryable,
+                status: error?.status || 0
+            });
 
             for (const cue of cuesToTranslate) {
                 cue._isTranslating = false;
@@ -949,7 +976,7 @@
 
                 if (currentTextObj && currentTextObj.text) {
                     if (currentTextObj.zhText === undefined) {
-                        currentTextObj._tempDisplay = '正在优先翻译当前片段...';
+                        currentTextObj._tempDisplay = '优先翻译当前片段...';
                     }
 
                     if (translationState.focusIndex !== currentTextIndex || !translationState.processing) {

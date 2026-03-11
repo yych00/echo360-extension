@@ -63,7 +63,11 @@ function forwardTranslateRequest(messageType, requestId, payload) {
                 type: 'TRANSLATE_RESPONSE',
                 requestId,
                 success: false,
-                error: chrome.runtime.lastError.message || 'Background translation request failed.'
+                error: chrome.runtime.lastError.message || 'Background translation request failed.',
+                errorCode: 'TRANSLATE_RUNTIME_ERROR',
+                errorCategory: 'runtime',
+                retryable: false,
+                status: 0
             });
             return;
         }
@@ -73,7 +77,11 @@ function forwardTranslateRequest(messageType, requestId, payload) {
             requestId,
             success: !!response?.success,
             payload: response?.payload,
-            error: response?.error || ''
+            error: response?.error || '',
+            errorCode: response?.errorCode || '',
+            errorCategory: response?.errorCategory || '',
+            retryable: !!response?.retryable,
+            status: response?.status || 0
         });
     });
 }
