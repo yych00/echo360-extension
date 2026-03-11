@@ -57,6 +57,49 @@
         fastLanePending: null,
         lastFastLaneKey: ''
     };
+    let translationRequestSeq = 0;
+    const pendingTranslationRequests = new Map();
+
+    window.addEventListener('message', (event) => {
+        if (event.source !== window || event.origin !== location.origin) return;
+
+        const data = event.data;
+        if (!data || data.source !== 'echo360-cc-content' || data.type !== 'TRANSLATE_RESPONSE' || !data.requestId) {
+            return;
+        }
+
+        const pendingRequest = pendingTranslationRequests.get(data.requestId);
+        if (!pendingRequest) return;
+
+        clearTimeout(pendingRequest.timeoutId);
+        pendingTranslationRequests.delete(data.requestId);
+
+        if (data.success) {
+            pendingRequest.resolve(data.payload || {});
+            return;
+        }
+
+        pendingRequest.reject(new Error(data.error || 'Translation request failed.'));
+    });
+
+    function requestBackgroundTranslation(type, payload) {
+        return new Promise((resolve, reject) => {
+            const requestId = `translate-${Date.now()}-${++translationRequestSeq}`;
+            const timeoutId = setTimeout(() => {
+                pendingTranslationRequests.delete(requestId);
+                reject(new Error('Translation request timed out.'));
+            }, 15000);
+
+            pendingTranslationRequests.set(requestId, { resolve, reject, timeoutId });
+
+            window.postMessage({
+                source: 'echo360-cc-inject',
+                type,
+                requestId,
+                payload
+            }, location.origin);
+        });
+    }
 
     // ========= 兼容性极强的数据解析引擎 =========
     function parseVTT(vttStr) {
@@ -449,17 +492,11 @@
 
         cue._isTranslating = true;
         try {
-            const gtUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(cue.text)}`;
-            const res = await fetch(gtUrl);
-            const data = await res.json();
-
-            let transText = '';
-            if (data && data[0]) {
-                data[0].forEach(t => {
-                    if (t[0]) transText += t[0];
-                });
-            }
-
+            const response = await requestBackgroundTranslation('TRANSLATE_REQUEST', {
+                text: cue.text,
+                targetLang
+            });
+            const transText = response.translatedText || '';
             cue.zhText = transText || '[翻译为空]';
             delete cue._tempDisplay;
             return true;
@@ -481,19 +518,12 @@
         });
 
         try {
-            const requestText = cuesToTranslate.map(cue => cue.text).join(TRANSLATION_BATCH_SEPARATOR);
-            const gtUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(requestText)}`;
-            const res = await fetch(gtUrl);
-            const data = await res.json();
-
-            let transText = '';
-            if (data && data[0]) {
-                data[0].forEach(t => {
-                    if (t[0]) transText += t[0];
-                });
-            }
-
-            const translatedParts = transText.split(TRANSLATION_BATCH_SEPARATOR);
+            const response = await requestBackgroundTranslation('TRANSLATE_BATCH_REQUEST', {
+                texts: cuesToTranslate.map(cue => cue.text),
+                targetLang,
+                separator: TRANSLATION_BATCH_SEPARATOR
+            });
+            const translatedParts = Array.isArray(response.translatedTexts) ? response.translatedTexts : [];
             if (translatedParts.length !== cuesToTranslate.length) {
                 throw new Error(`Batch translation split mismatch: expected ${cuesToTranslate.length}, got ${translatedParts.length}`);
             }

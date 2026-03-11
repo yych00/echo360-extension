@@ -49,9 +49,48 @@ function syncConfigToPage(config) {
     }));
 }
 
+function postMessageToPage(message) {
+    window.postMessage({
+        source: 'echo360-cc-content',
+        ...message
+    }, location.origin);
+}
+
+function forwardTranslateRequest(messageType, requestId, payload) {
+    chrome.runtime.sendMessage({ type: messageType, payload }, (response) => {
+        if (chrome.runtime.lastError) {
+            postMessageToPage({
+                type: 'TRANSLATE_RESPONSE',
+                requestId,
+                success: false,
+                error: chrome.runtime.lastError.message || 'Background translation request failed.'
+            });
+            return;
+        }
+
+        postMessageToPage({
+            type: 'TRANSLATE_RESPONSE',
+            requestId,
+            success: !!response?.success,
+            payload: response?.payload,
+            error: response?.error || ''
+        });
+    });
+}
+
 // 监听从网站里的 inject.js 传出来的进度消息并向外透传给插件 options
 window.addEventListener('message', (event) => {
     if (event.source === window && event.origin === location.origin && event.data && event.data.source === 'echo360-cc-inject') {
+        if (event.data.type === 'TRANSLATE_REQUEST' && event.data.requestId && event.data.payload) {
+            forwardTranslateRequest('TRANSLATE_TEXT', event.data.requestId, event.data.payload);
+            return;
+        }
+
+        if (event.data.type === 'TRANSLATE_BATCH_REQUEST' && event.data.requestId && event.data.payload) {
+            forwardTranslateRequest('TRANSLATE_TEXT_BATCH', event.data.requestId, event.data.payload);
+            return;
+        }
+
         if (event.data.type === 'PROGRESS_UPDATE') {
             const progressPayload = {
                 percent: Number(event.data.percent) || 0,
