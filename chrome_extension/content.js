@@ -109,16 +109,3 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
         });
     }
 });
-
-// 兜底机制：每 2 秒主动轮询 chrome.storage，确保配置一定能同步到 DOM 属性
-// 不依赖任何事件，即使 onChanged / onMessage 在跨域 iframe 中不触发也能生效
-setInterval(() => {
-    try {
-        chrome.storage.sync.get(DEFAULT_CONFIG, (items) => {
-            if (chrome.runtime.lastError) return;
-            syncConfigToPage(items);
-        });
-    } catch (e) {
-        // 扩展上下文已失效 (页面没刷新但扩展被重载)，停止轮询
-    }
-}, 2000);

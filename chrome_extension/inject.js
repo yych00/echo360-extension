@@ -372,19 +372,19 @@
         applyConfigImmediately(event.detail || {});
     });
 
-    // 轮询 DOM 属性获取配置更新 (content script 写 DOM 属性，page world 读 DOM 属性，100% 可靠)
-    let _lastSeenConfigAttr = '';
-    setInterval(() => {
+    function readConfigFromDomAttribute() {
         try {
             const raw = document.documentElement.getAttribute('data-echo360-cc-config');
-            if (raw && raw !== _lastSeenConfigAttr) {
-                _lastSeenConfigAttr = raw;
-                const config = JSON.parse(raw);
-                console.log('[Echo360 CC] Config update detected via DOM polling:', config);
-                applyConfigImmediately(config);
-            }
-        } catch (e) { }
-    }, 500);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    const initialDomConfig = readConfigFromDomAttribute();
+    if (initialDomConfig) {
+        applyConfigImmediately(initialDomConfig);
+    }
 
     function getCueIndexByTime(cues, currentTimeMs) {
         if (!cues || cues.length === 0) return -1;
@@ -518,7 +518,7 @@
                 const batch = pickNextBatch(cues, translationState.focusIndex, TRANSLATION_BATCH_SIZE);
 
                 if (batch.length === 0) {
-                    sendProgress(100, '✅ 当前课程字幕已完成优先翻译');
+                    sendProgress(100, '✅ 已完成翻译');
                     console.log('[Echo360 CC Plugin] Priority translation queue drained.');
                     break;
                 }
@@ -552,7 +552,7 @@
             translationState.runId += 1;
             translationState.cues = cues;
             translationState.targetLang = targetLang;
-            sendProgress(0, '🔄 翻译任务初始化...');
+            sendProgress(0, '🔄 正在翻译');
             console.log(`[Echo360 CC Plugin] Priority Translation Queue started for ${cues.length} sentences.`);
         }
 
@@ -667,16 +667,6 @@
         overlayLoopInterval = setInterval(() => {
             if (!transcriptData) return;
             debugTick++;
-
-            // 每次循环直接从 DOM 属性读取最新配置 (content script 写入，page world 读取，100% 可靠)
-            try {
-                const rawAttr = document.documentElement.getAttribute('data-echo360-cc-config');
-                if (rawAttr) {
-                    const parsed = JSON.parse(rawAttr);
-                    activeConfig = { ...BASE_CONFIG, ...parsed };
-                    window.__ECHO360_CC_CONFIG__ = activeConfig;
-                }
-            } catch (e) { }
 
             const config = activeConfig || window.__ECHO360_CC_CONFIG__ || {};
 
