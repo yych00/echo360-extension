@@ -1,9 +1,10 @@
 {
     "manifest_version": 3,
-    "name": "Echo360 CC 字幕助手",
+    "name": "__MSG_extensionName__",
     "version": "1.0.0",
     "author": "yuchenyang",
-    "description": "为 Echo360 视频课程自动加载 CC 字幕，并提供实时中文翻译显示。",
+    "description": "__MSG_extensionDescription__",
+    "default_locale": "zh_CN",
     "icons": {
         "16": "icons/icon16.png",
         "32": "icons/icon32.png",

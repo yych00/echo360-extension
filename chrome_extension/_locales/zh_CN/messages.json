@@ -1,0 +1,8 @@
+{
+    "extensionName": {
+        "message": "Echo360 CC 字幕助手"
+    },
+    "extensionDescription": {
+        "message": "为 Echo360 视频课程自动加载 CC 字幕，并提供实时中文翻译显示。"
+    }
+}
