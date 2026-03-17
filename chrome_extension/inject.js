@@ -1091,6 +1091,10 @@
 
     // ========= 键盘快进快退功能（按句子跳转） =========
 
+    // 连续按键缓存池 (Rapid Seek State)
+    // 解决如果遇到超短发音（例如 "Yeah" 0.5秒），在多次按下方向键时，视频实际播放时间来不及跳跃，
+    // 导致下一次 getCueIndexByTime() 拿到的还是当前句，引发“卡句”现象。
+    // 该缓存池能在预定阈值内强制叠加步数。
     let rapidSeekState = {
         targetIndex: -1,
         lastTime: 0
@@ -1099,10 +1103,12 @@
     // Echo360 播放器 seek 策略 (最终版)：
     // 直接调用 React 的 state update handler，防止 currentTime 相互覆盖竞争。
     function seekAllVideos(targetTimeSec, durationSec) {
+        // 边界防护：防止跳转到非法时间范围引起播放器崩溃
         if (targetTimeSec < 0) targetTimeSec = 0;
         if (targetTimeSec > durationSec) targetTimeSec = durationSec;
 
-        // 尝试从进度条劫持 React 的原生 seek 方法
+        // 策略A（最佳）：从进度条劫持 React 的原生 seek 方法
+        // 进度条自带 onChange 钩子，这是最合法的 React State 变更通知通道
         const timeline = document.getElementById('timeline-progress-bar');
         if (timeline) {
             const reactKey = Object.keys(timeline).find(key => key.startsWith('__reactProps'));
@@ -1110,15 +1116,15 @@
                 // timeline 接受的值是 0 - 100 的百分比
                 const percentage = (targetTimeSec / durationSec) * 100;
                 timeline[reactKey].onChange(percentage);
-                return; // React 内部状态更新会负责同步所有的 video，到此结束
+                return; // 内部状态更新会负责同步所有的 video（包括双视频画面），到此结束
             }
         }
 
-        // 回退方案：如果页面结构变了导致找不到 onChange，直接修改所有视频
+        // 策略B（回退方案）：页面结构变更导致找不到 onChange 时，直接暴力修改视频 DOM
         const allVideos = getActiveVideos();
         allVideos.forEach(v => {
             v.currentTime = targetTimeSec;
-            v.dispatchEvent(new Event('seeking'));
+            v.dispatchEvent(new Event('seeking')); // 尝试唤醒可能挂在 video 身上的监听
             v.dispatchEvent(new Event('seeked'));
         });
     }
@@ -1132,13 +1138,13 @@
         // 只响应左右方向键
         if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
 
-        // 如果焦点在输入框/文本框内，不拦截（避免干扰正常输入）
+        // 如果焦点在输入框/文本框内，不拦截（避免干扰正常输入，如做笔记）
         const tag = document.activeElement?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) {
             return;
         }
 
-        // 没有字幕数据时不处理
+        // 没有字幕数据时不处理（安全兜底）
         if (!transcriptData || transcriptData.length === 0) return;
 
         const videos = getActiveVideos();
@@ -1148,17 +1154,18 @@
         const targetVideo = videos.find(v => !v.paused && v.currentTime > 0) || videos[0];
         if (!targetVideo || !targetVideo.duration) return;
 
+        // 阻止默认滚动行为及同级其他监听器扩散
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation(); // 彻底阻止 Echo360 自身的键盘处理器
+        e.stopImmediatePropagation(); // 彻底阻止 Echo360 自身的原生快进快退处理器（通常是 +-10s），防止冲突
 
         const currentTimeMs = targetVideo.currentTime * 1000;
         const durationSec = targetVideo.duration;
 
-        // 获取当前的 subtitle index
+        // 获取视频在这个物理时间点上对应的字幕句号
         const currentIndex = getCueIndexByTime(transcriptData, currentTimeMs);
         const now = Date.now();
-        const isRapid = (now - rapidSeekState.lastTime) < 1000; // 1秒内的连续按键，视为叠加跳转
+        const isRapid = (now - rapidSeekState.lastTime) < 1000; // 1秒内的连续按键，视为累加跳跃
 
         if (e.key === 'ArrowLeft') {
             let targetIndex;
