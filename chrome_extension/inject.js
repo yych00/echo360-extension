@@ -25,7 +25,8 @@
     log.info('Injection script loaded and listening for subtitle API...');
 
     let transcriptData = null;
-    let subtitleInjected = false;
+    // 最小安全回退配置（inject.js 运行在页面 world，无法直接读 defaults.json）
+    // 日常修改默认值请编辑 defaults.json，此处仅保留结构性回退
     const BASE_CONFIG = {
         ccEnableSubtitles: true,
         ccTargetLang: 'zh-CN',
@@ -104,6 +105,17 @@
                     status: 0
                 }));
             }, 15000);
+
+            // 防御性：如果待处理请求超过安全阈值，强制清理最早入队的请求防止内存泄漏
+            if (pendingTranslationRequests.size > 50) {
+                const oldestKey = pendingTranslationRequests.keys().next().value;
+                const oldestReq = pendingTranslationRequests.get(oldestKey);
+                if (oldestReq) {
+                    clearTimeout(oldestReq.timeoutId);
+                    oldestReq.reject(buildTranslationError({ error: 'Request evicted due to queue overflow.', errorCode: 'TRANSLATE_QUEUE_OVERFLOW', errorCategory: 'queue', retryable: true, status: 0 }));
+                }
+                pendingTranslationRequests.delete(oldestKey);
+            }
 
             pendingTranslationRequests.set(requestId, { resolve, reject, timeoutId });
 
@@ -343,6 +355,26 @@
         }, location.origin);
     }
 
+    // ========= 语言变更时的翻译缓存统一清空 =========
+    function flushTranslationsForLangChange(newLang, currentTimeMs) {
+        if (!transcriptData) return;
+
+        log.info(`Language changed from ${window._LAST_CC_LANG} to ${newLang}, flushing translations...`);
+        transcriptData.forEach(cue => {
+            delete cue.zhText;
+            delete cue._tempDisplay;
+            delete cue._isTranslating;
+            delete cue._retryCount;
+        });
+        broadcastTranscriptExport();
+        window._LAST_CC_LANG = newLang;
+        translationState.runId += 1;
+        translationState.cues = transcriptData;
+        translationState.targetLang = newLang;
+        translationState.focusIndex = getCueIndexByTime(transcriptData, currentTimeMs);
+        queueFocusedTranslation(transcriptData, translationState.focusIndex);
+    }
+
     function getTargetLang() {
         const config = activeConfig || window.__ECHO360_CC_CONFIG__ || { ccTargetLang: 'zh-CN' };
         return sanitizeLang(config.ccTargetLang || 'zh-CN');
@@ -430,20 +462,7 @@
         }
 
         if (transcriptData && activeConfig.ccTargetLang && window._LAST_CC_LANG !== activeConfig.ccTargetLang) {
-            const currentTimeMs = getCurrentPlaybackTimeMs();
-            log.info(`Immediate config apply: language changed from ${window._LAST_CC_LANG} to ${activeConfig.ccTargetLang}.`);
-            transcriptData.forEach(cue => {
-                delete cue.zhText;
-                delete cue._tempDisplay;
-                delete cue._isTranslating;
-            });
-            broadcastTranscriptExport();
-            window._LAST_CC_LANG = activeConfig.ccTargetLang;
-            translationState.runId += 1;
-            translationState.cues = transcriptData;
-            translationState.targetLang = activeConfig.ccTargetLang;
-            translationState.focusIndex = getCueIndexByTime(transcriptData, currentTimeMs);
-            queueFocusedTranslation(transcriptData, translationState.focusIndex);
+            flushTranslationsForLangChange(activeConfig.ccTargetLang, getCurrentPlaybackTimeMs());
         }
     }
 
@@ -494,8 +513,34 @@
         return -1;
     }
 
+    let _cachedVideos = null;
+    let _lastVideosScanTime = 0;
+
+    // 性能优化：添加视频节点查询缓存，避免每 100ms 遍历一次巨大的 React 树
+    function getActiveVideos() {
+        const now = Date.now();
+        if (_cachedVideos && _cachedVideos.length > 0) {
+            const allConnected = _cachedVideos.every(v => v.isConnected);
+            if (allConnected) {
+                // 只要所有视频还在屏幕上存活，最多 3 秒钟大扫描一次
+                if (now - _lastVideosScanTime < 3000) {
+                    return _cachedVideos;
+                }
+            }
+        }
+
+        // 如果没有找到视频，冷却 1 秒再扫描，防抖
+        if (now - _lastVideosScanTime < 1000 && (!_cachedVideos || _cachedVideos.length === 0)) {
+            return [];
+        }
+
+        _lastVideosScanTime = now;
+        _cachedVideos = findAllVideos(document);
+        return _cachedVideos;
+    }
+
     function getCurrentPlaybackTimeMs() {
-        const videos = findAllVideos(document);
+        const videos = getActiveVideos();
         if (!videos || videos.length === 0) return 0;
 
         const targetVideo = videos.find(v => !v.paused && v.currentTime > 0) || videos[0];
@@ -528,23 +573,23 @@
             } else if ((e?.category === 'timeout' || e?.category === 'network' || e?.status >= 500)) {
                 // ============== 新增：处理网络波动的额外重试方案 ==============
                 cue._retryCount = (cue._retryCount || 0) + 1;
-                
+
                 if (cue._retryCount <= 2) {
                     // 如果还未超过最大重试次数，显示等待重试，并通过定时器在 2 秒后抛回队列
                     cue.zhText = `[网络波动...等待重试 ${cue._retryCount}/2]`;
-                    
+
                     setTimeout(() => {
                         // 清除这三个标志位，使它能再次被 pickNextBatch 函数抓取
                         delete cue.zhText;
                         delete cue._tempDisplay;
                         cue._isTranslating = false;
-                        
+
                         // 重新拨动翻译引擎的引擎齿轮，让它扫描到这个缺口
                         if (!translationState.processing) {
                             processTranslationQueue(translationState.runId);
                         }
                     }, 2000);
-                    
+
                     return false;
                 } else {
                     // 超过重试次数，彻底放弃
@@ -588,7 +633,7 @@
 
             return true;
         } catch (error) {
-            log.warn('Batch translate failed, falling back to sequential requests.', {
+            log.warn('Batch translate failed fallback check.', {
                 message: error?.message || String(error),
                 code: error?.code || 'TRANSLATE_UNKNOWN_ERROR',
                 category: error?.category || 'unknown',
@@ -596,6 +641,38 @@
                 status: error?.status || 0
             });
 
+            const isStormError = error?.status === 429 || error?.category === 'timeout' || error?.category === 'network' || error?.status >= 500;
+
+            if (isStormError) {
+                // ============== 新增防御：批量翻译遇到风暴时，禁止降级成单句洪水轰炸 ==============
+                for (const cue of cuesToTranslate) {
+                    cue._isTranslating = false;
+
+                    if (error?.status === 429) {
+                        cue.zhText = '[429 请求限流]';
+                    } else {
+                        // 赋予和单句相同的延迟反弹逻辑
+                        cue._retryCount = (cue._retryCount || 0) + 1;
+                        if (cue._retryCount <= 2) {
+                            cue.zhText = `[合并翻译波动...等待重试 ${cue._retryCount}/2]`;
+                            setTimeout(() => {
+                                delete cue.zhText;
+                                delete cue._tempDisplay;
+                                cue._isTranslating = false;
+                                if (!translationState.processing) {
+                                    processTranslationQueue(translationState.runId);
+                                }
+                            }, 2000);
+                        } else {
+                            cue.zhText = error?.category === 'timeout' ? '[网络超时]' : `[${error?.status || '网络'} 断开]`;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            // 只有当批量接口是因为自身 Payload 切割失败（例如标点错乱、过长）等非网络性错误时，再走单句降级
+            log.warn('Batch payload error, falling back to sequential requests.');
             for (const cue of cuesToTranslate) {
                 cue._isTranslating = false;
                 await translateCue(cue, targetLang);
@@ -873,8 +950,8 @@
 
             const config = activeConfig || window.__ECHO360_CC_CONFIG__ || {};
 
-            // 实时寻找页面上存活的 Video 标签
-            const videos = findAllVideos(document);
+            // 利用缓存机制获取页面上存活的 Video 标签，避免高频暴穿 DOM
+            const videos = getActiveVideos();
 
             if (videos.length === 0) {
                 if (debugTick % 30 === 0) log.info('渲染引擎处于活跃状态，但没有在当前帧中找到 <video> 节点。');
@@ -887,19 +964,7 @@
 
             // 检查语言是否发生变更，如果变更了，清空翻译缓存触发重新翻译
             if (config.ccTargetLang && window._LAST_CC_LANG !== config.ccTargetLang) {
-                log.info(`Language changed from ${window._LAST_CC_LANG} to ${config.ccTargetLang}, flushing translations...`);
-                transcriptData.forEach(cue => {
-                    delete cue.zhText;
-                    delete cue._tempDisplay;
-                    delete cue._isTranslating;
-                });
-                broadcastTranscriptExport();
-                window._LAST_CC_LANG = config.ccTargetLang;
-                translationState.runId += 1;
-                translationState.cues = transcriptData;
-                translationState.targetLang = config.ccTargetLang;
-                translationState.focusIndex = getCueIndexByTime(transcriptData, currentTimeMs);
-                queueFocusedTranslation(transcriptData, translationState.focusIndex);
+                flushTranslationsForLangChange(config.ccTargetLang, currentTimeMs);
             }
 
             // 确保 overlay 长期存活

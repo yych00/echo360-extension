@@ -3,7 +3,8 @@
  * @description Echo360 CC 字幕助手 Content Script
  */
 
-// 默认配置（必须包含所有配置字段，chrome.storage.sync.get 以此对象为 key 列表）
+// 最小安全回退配置（仅在 defaults.json 加载失败时兜底）
+// 日常修改默认值请编辑 defaults.json，此处仅保留结构性回退
 const FALLBACK_DEFAULT_CONFIG = {
     ccEnableSubtitles: true,
     ccTargetLang: 'zh-CN',
@@ -56,9 +57,15 @@ function postMessageToPage(message) {
     }, location.origin);
 }
 
-function forwardTranslateRequest(messageType, requestId, payload) {
+function forwardTranslateRequest(messageType, requestId, payload, _isRetry) {
     chrome.runtime.sendMessage({ type: messageType, payload }, (response) => {
         if (chrome.runtime.lastError) {
+            // Service Worker 冷启动导致连接失败时，自动延迟 500ms 重试一次
+            if (!_isRetry && chrome.runtime.lastError.message?.includes('Receiving end does not exist')) {
+                setTimeout(() => forwardTranslateRequest(messageType, requestId, payload, true), 500);
+                return;
+            }
+
             postMessageToPage({
                 type: 'TRANSLATE_RESPONSE',
                 requestId,

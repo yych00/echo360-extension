@@ -38,6 +38,8 @@ const CONFIG_KEYS = [
     'ccShowEnglish'
 ];
 
+// 最小安全回退配置（仅在 defaults.json 加载失败时兜底）
+// 日常修改默认值请编辑 defaults.json，此处仅保留结构性回退
 const FALLBACK_DEFAULT_CONFIG = {
     ccEnableSubtitles: true,
     ccTargetLang: 'zh-CN',

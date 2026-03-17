@@ -1,0 +1,8 @@
+{
+    "extensionName": {
+        "message": "Echo360 CC Subtitle Assistant"
+    },
+    "extensionDescription": {
+        "message": "Automatically load CC subtitles for Echo360 video lectures with real-time Chinese translation overlay."
+    }
+}
