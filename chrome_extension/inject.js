@@ -523,7 +523,39 @@
                 retryable: !!e?.retryable,
                 status: e?.status || 0
             });
-            cue.zhText = '[网络限制]';
+            if (e?.status === 429) {
+                cue.zhText = '[429 请求限流]';
+            } else if ((e?.category === 'timeout' || e?.category === 'network' || e?.status >= 500)) {
+                // ============== 新增：处理网络波动的额外重试方案 ==============
+                cue._retryCount = (cue._retryCount || 0) + 1;
+                
+                if (cue._retryCount <= 2) {
+                    // 如果还未超过最大重试次数，显示等待重试，并通过定时器在 2 秒后抛回队列
+                    cue.zhText = `[网络波动...等待重试 ${cue._retryCount}/2]`;
+                    
+                    setTimeout(() => {
+                        // 清除这三个标志位，使它能再次被 pickNextBatch 函数抓取
+                        delete cue.zhText;
+                        delete cue._tempDisplay;
+                        cue._isTranslating = false;
+                        
+                        // 重新拨动翻译引擎的引擎齿轮，让它扫描到这个缺口
+                        if (!translationState.processing) {
+                            processTranslationQueue(translationState.runId);
+                        }
+                    }, 2000);
+                    
+                    return false;
+                } else {
+                    // 超过重试次数，彻底放弃
+                    cue.zhText = e?.category === 'timeout' ? '[网络超时]' : `[${e.status || '网络'} 断开]`;
+                }
+            } else if (e?.status >= 400) {
+                cue.zhText = `[${e.status} 请求被拒绝]`;
+            } else {
+                cue.zhText = '[翻译失败]';
+            }
+
             return false;
         } finally {
             cue._isTranslating = false;
