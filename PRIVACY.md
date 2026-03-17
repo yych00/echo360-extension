@@ -1,6 +1,6 @@
 # Privacy Policy for Echo360 CC 字幕助手 (Echo360 Subtitle Assistant)
 
-Last updated: March 12, 2026
+Last updated: March 17, 2026
 
 This Extension is committed to protecting your privacy. This Privacy Policy describes how we handle information in relation to the **Echo360 CC 字幕助手** Browser Extension (the "Extension").
 
