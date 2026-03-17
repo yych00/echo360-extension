@@ -23,6 +23,8 @@ const showChineseInput = document.getElementById("showChinese");
 const showEnglishInput = document.getElementById("showEnglish");
 const showChineseBtn = document.getElementById("showChineseBtn");
 const showEnglishBtn = document.getElementById("showEnglishBtn");
+// 键盘快捷键开关
+const keyboardShortcutsInput = document.getElementById("keyboardShortcuts");
 let statusClearTimer = null;
 // --- 自动保存防抖计时器 ---
 let autoSaveTimer = null;
@@ -35,7 +37,8 @@ const CONFIG_KEYS = [
     'ccEnglishColor',
     'ccBgOpacity',
     'ccShowChinese',
-    'ccShowEnglish'
+    'ccShowEnglish',
+    'ccKeyboardShortcuts'
 ];
 
 // 最小安全回退配置（仅在 defaults.json 加载失败时兜底）
@@ -49,7 +52,8 @@ const FALLBACK_DEFAULT_CONFIG = {
     ccEnglishColor: '#ffffff',
     ccBgOpacity: 0.6,
     ccShowChinese: true,
-    ccShowEnglish: true
+    ccShowEnglish: true,
+    ccKeyboardShortcuts: true
 };
 let DEFAULT_CONFIG = { ...FALLBACK_DEFAULT_CONFIG };
 
@@ -243,7 +247,8 @@ function buildCurrentConfig() {
         ccEnglishColor: englishColorInput.value,
         ccBgOpacity: Number(bgOpacityInput.value),
         ccShowChinese: showChineseInput.checked,
-        ccShowEnglish: showEnglishInput.checked
+        ccShowEnglish: showEnglishInput.checked,
+        ccKeyboardShortcuts: keyboardShortcutsInput.checked
     };
 }
 
@@ -266,6 +271,7 @@ function applyConfigToForm(config) {
     // 字幕显示模式按钮
     showChineseInput.checked = config.ccShowChinese !== false;
     showEnglishInput.checked = config.ccShowEnglish !== false;
+    keyboardShortcutsInput.checked = config.ccKeyboardShortcuts !== false;
     syncModeBtnStyle();
     updatePreview();
 }
@@ -370,6 +376,11 @@ function saveAndBroadcast(statusMsg) {
 // 启用 CC 字幕开关独立保存
 enableSubtitlesInput.addEventListener('change', () => {
     saveAndBroadcast(enableSubtitlesInput.checked ? 'CC 字幕已启用。' : 'CC 字幕已关闭。');
+});
+
+// 键盘快捷键开关独立保存
+keyboardShortcutsInput.addEventListener('change', () => {
+    saveAndBroadcast(keyboardShortcutsInput.checked ? '键盘快捷键已启用。' : '键盘快捷键已关闭。');
 });
 
 // 保存配置 (不包含 enableSubtitles 的其余设置通过保存按钮保存)

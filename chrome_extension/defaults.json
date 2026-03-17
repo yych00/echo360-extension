@@ -7,5 +7,6 @@
     "ccEnglishColor": "#ffffff",
     "ccBgOpacity": 0.6,
     "ccShowChinese": true,
-    "ccShowEnglish": true
+    "ccShowEnglish": true,
+    "ccKeyboardShortcuts": true
 }

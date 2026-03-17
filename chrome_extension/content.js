@@ -14,7 +14,8 @@ const FALLBACK_DEFAULT_CONFIG = {
     ccEnglishColor: '#ffffff',
     ccBgOpacity: 0.6,
     ccShowChinese: true,
-    ccShowEnglish: true
+    ccShowEnglish: true,
+    ccKeyboardShortcuts: true
 };
 let DEFAULT_CONFIG = { ...FALLBACK_DEFAULT_CONFIG };
 

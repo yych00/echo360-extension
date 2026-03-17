@@ -36,7 +36,8 @@
         ccEnglishColor: '#ffffff',
         ccBgOpacity: 0.6,
         ccShowChinese: true,
-        ccShowEnglish: true
+        ccShowEnglish: true,
+        ccKeyboardShortcuts: true
     };
     let activeConfig = {
         ...BASE_CONFIG,
@@ -1087,5 +1088,108 @@
             }
         }, 100);
     }
+
+    // ========= 键盘快进快退功能（按句子跳转） =========
+
+    let rapidSeekState = {
+        targetIndex: -1,
+        lastTime: 0
+    };
+
+    // Echo360 播放器 seek 策略 (最终版)：
+    // 直接调用 React 的 state update handler，防止 currentTime 相互覆盖竞争。
+    function seekAllVideos(targetTimeSec, durationSec) {
+        if (targetTimeSec < 0) targetTimeSec = 0;
+        if (targetTimeSec > durationSec) targetTimeSec = durationSec;
+
+        // 尝试从进度条劫持 React 的原生 seek 方法
+        const timeline = document.getElementById('timeline-progress-bar');
+        if (timeline) {
+            const reactKey = Object.keys(timeline).find(key => key.startsWith('__reactProps'));
+            if (reactKey && timeline[reactKey] && typeof timeline[reactKey].onChange === 'function') {
+                // timeline 接受的值是 0 - 100 的百分比
+                const percentage = (targetTimeSec / durationSec) * 100;
+                timeline[reactKey].onChange(percentage);
+                return; // React 内部状态更新会负责同步所有的 video，到此结束
+            }
+        }
+
+        // 回退方案：如果页面结构变了导致找不到 onChange，直接修改所有视频
+        const allVideos = getActiveVideos();
+        allVideos.forEach(v => {
+            v.currentTime = targetTimeSec;
+            v.dispatchEvent(new Event('seeking'));
+            v.dispatchEvent(new Event('seeked'));
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        const config = activeConfig || window.__ECHO360_CC_CONFIG__ || {};
+
+        // 如果功能被关闭，不处理
+        if (config.ccKeyboardShortcuts === false) return;
+
+        // 只响应左右方向键
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+
+        // 如果焦点在输入框/文本框内，不拦截（避免干扰正常输入）
+        const tag = document.activeElement?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) {
+            return;
+        }
+
+        // 没有字幕数据时不处理
+        if (!transcriptData || transcriptData.length === 0) return;
+
+        const videos = getActiveVideos();
+        if (!videos || videos.length === 0) return;
+
+        // 找到正在播放的视频来读取当前时间
+        const targetVideo = videos.find(v => !v.paused && v.currentTime > 0) || videos[0];
+        if (!targetVideo || !targetVideo.duration) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation(); // 彻底阻止 Echo360 自身的键盘处理器
+
+        const currentTimeMs = targetVideo.currentTime * 1000;
+        const durationSec = targetVideo.duration;
+
+        // 获取当前的 subtitle index
+        const currentIndex = getCueIndexByTime(transcriptData, currentTimeMs);
+        const now = Date.now();
+        const isRapid = (now - rapidSeekState.lastTime) < 1000; // 1秒内的连续按键，视为叠加跳转
+
+        if (e.key === 'ArrowLeft') {
+            let targetIndex;
+            if (isRapid && rapidSeekState.targetIndex !== -1) {
+                // 如果是连续快速按键，直接基于上一次的目标叠加，无视视频当前播到哪了
+                targetIndex = rapidSeekState.targetIndex - 1;
+            } else {
+                targetIndex = currentIndex - 1;
+            }
+            if (targetIndex < 0) targetIndex = 0;
+
+            rapidSeekState.targetIndex = targetIndex;
+            rapidSeekState.lastTime = now;
+
+            seekAllVideos(transcriptData[targetIndex].start / 1000, durationSec);
+            log.info(`⏪ 倒退到第 ${targetIndex + 1} 句: "${transcriptData[targetIndex].text.substring(0, 30)}..."`);
+        } else if (e.key === 'ArrowRight') {
+            let targetIndex;
+            if (isRapid && rapidSeekState.targetIndex !== -1) {
+                targetIndex = rapidSeekState.targetIndex + 1;
+            } else {
+                targetIndex = currentIndex + 1;
+            }
+            if (targetIndex >= transcriptData.length) targetIndex = transcriptData.length - 1;
+
+            rapidSeekState.targetIndex = targetIndex;
+            rapidSeekState.lastTime = now;
+
+            seekAllVideos(transcriptData[targetIndex].start / 1000, durationSec);
+            log.info(`⏩ 前进到第 ${targetIndex + 1} 句: "${transcriptData[targetIndex].text.substring(0, 30)}..."`);
+        }
+    }, true); // 使用捕获阶段，确保优先于 Echo360 自身的事件处理
 
 })();
