@@ -450,16 +450,23 @@
 
         const overlay = document.getElementById('echo360-cc-overlay');
         if (overlay) {
-            const bgOp = activeConfig.ccBgOpacity !== undefined ? activeConfig.ccBgOpacity : 0.6;
-            overlay.style.setProperty('background', `rgba(0, 0, 0, ${bgOp})`, 'important');
-            overlay.style.setProperty('box-shadow', bgOp === 0 ? 'none' : '0 4px 6px rgba(0,0,0,0.3)', 'important');
+            /* --- 字幕禁用时直接隐藏，避免设置变更触发闪烁 --- */
+            if (activeConfig.ccEnableSubtitles === false) {
+                overlay.style.display = 'none';
+                overlay.replaceChildren();
+            } else {
+                const bgOp = activeConfig.ccBgOpacity !== undefined ? activeConfig.ccBgOpacity : 0.6;
+                overlay.style.setProperty('background', `rgba(0, 0, 0, ${bgOp})`, 'important');
+                overlay.style.setProperty('box-shadow', bgOp === 0 ? 'none' : '0 4px 6px rgba(0,0,0,0.3)', 'important');
 
-            if (transcriptData && transcriptData.length > 0) {
-                const currentTimeMs = getCurrentPlaybackTimeMs();
-                const activeIndex = getActiveCueIndexByTime(transcriptData, currentTimeMs);
-                const activeCue = activeIndex >= 0 ? transcriptData[activeIndex] : null;
-                renderOverlaySubtitle(overlay, activeCue, activeConfig);
+                if (transcriptData && transcriptData.length > 0) {
+                    const currentTimeMs = getCurrentPlaybackTimeMs();
+                    const activeIndex = getActiveCueIndexByTime(transcriptData, currentTimeMs);
+                    const activeCue = activeIndex >= 0 ? transcriptData[activeIndex] : null;
+                    renderOverlaySubtitle(overlay, activeCue, activeConfig);
+                }
             }
+            /* --- END 字幕禁用检查 --- */
         }
 
         if (transcriptData && activeConfig.ccTargetLang && window._LAST_CC_LANG !== activeConfig.ccTargetLang) {
@@ -963,6 +970,17 @@
             let targetVideo = videos.find(v => !v.paused && v.currentTime > 0) || videos[0];
             const currentTimeMs = targetVideo.currentTime * 1000;
 
+            /* --- 字幕禁用时提前退出，杜绝快进快退闪烁 --- */
+            if (config.ccEnableSubtitles === false) {
+                const existingOverlay = document.getElementById('echo360-cc-overlay');
+                if (existingOverlay) {
+                    existingOverlay.style.display = 'none';
+                    existingOverlay.replaceChildren();
+                }
+                return; // 不创建 overlay、不计算位置、不渲染字幕
+            }
+            /* --- END 字幕禁用提前退出 --- */
+
             // 检查语言是否发生变更，如果变更了，清空翻译缓存触发重新翻译
             if (config.ccTargetLang && window._LAST_CC_LANG !== config.ccTargetLang) {
                 flushTranslationsForLangChange(config.ccTargetLang, currentTimeMs);
@@ -1062,29 +1080,25 @@
             }
 
             // 更新文本内容
-            if (config.ccEnableSubtitles === false) {
-                renderOverlaySubtitle(overlay, null, config);
+            const currentTextIndex = getActiveCueIndexByTime(transcriptData, currentTimeMs);
+            const currentTextObj = currentTextIndex >= 0 ? transcriptData[currentTextIndex] : null;
+
+            if (debugTick % 30 === 0) {
+                log.info(`状态存活 -> 视频数: ${videos.length} | 毫秒: ${Math.floor(currentTimeMs)} | 中文状态: ${currentTextObj?.zhText || '未翻译'} | 命中: ${currentTextObj?.text || 'None'}`);
+            }
+
+            if (currentTextObj && currentTextObj.text) {
+                if (currentTextObj.zhText === undefined) {
+                    currentTextObj._tempDisplay = '优先翻译当前片段...';
+                }
+
+                if (translationState.focusIndex !== currentTextIndex || !translationState.processing) {
+                    queueFocusedTranslation(transcriptData, currentTextIndex);
+                }
+
+                renderOverlaySubtitle(overlay, currentTextObj, config);
             } else {
-                const currentTextIndex = getActiveCueIndexByTime(transcriptData, currentTimeMs);
-                const currentTextObj = currentTextIndex >= 0 ? transcriptData[currentTextIndex] : null;
-
-                if (debugTick % 30 === 0) {
-                    log.info(`状态存活 -> 视频数: ${videos.length} | 毫秒: ${Math.floor(currentTimeMs)} | 中文状态: ${currentTextObj?.zhText || '未翻译'} | 命中: ${currentTextObj?.text || 'None'}`);
-                }
-
-                if (currentTextObj && currentTextObj.text) {
-                    if (currentTextObj.zhText === undefined) {
-                        currentTextObj._tempDisplay = '优先翻译当前片段...';
-                    }
-
-                    if (translationState.focusIndex !== currentTextIndex || !translationState.processing) {
-                        queueFocusedTranslation(transcriptData, currentTextIndex);
-                    }
-
-                    renderOverlaySubtitle(overlay, currentTextObj, config);
-                } else {
-                    renderOverlaySubtitle(overlay, null, config);
-                }
+                renderOverlaySubtitle(overlay, null, config);
             }
         }, 100);
     }
