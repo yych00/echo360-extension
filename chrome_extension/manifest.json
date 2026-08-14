@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "__MSG_extensionName__",
-    "version": "1.0.2",
+    "version": "1.1.0",
     "author": "yuchenyang",
     "description": "__MSG_extensionDescription__",
     "default_locale": "zh_CN",
@@ -29,14 +29,20 @@
         "storage"
     ],
     "host_permissions": [
+        "*://*.echo360.net.au/*",
+        "*://*.echo360.org/*",
         "*://echo360.net.au/*",
+        "*://echo360.org/*",
         "*://canvas.lms.unimelb.edu.au/*",
         "*://translate.googleapis.com/*"
     ],
     "content_scripts": [
         {
             "matches": [
+                "*://*.echo360.net.au/*",
+                "*://*.echo360.org/*",
                 "*://echo360.net.au/*",
+                "*://echo360.org/*",
                 "*://canvas.lms.unimelb.edu.au/*"
             ],
             "js": [
@@ -53,7 +59,10 @@
                 "defaults.json"
             ],
             "matches": [
+                "*://*.echo360.net.au/*",
+                "*://*.echo360.org/*",
                 "*://echo360.net.au/*",
+                "*://echo360.org/*",
                 "*://canvas.lms.unimelb.edu.au/*"
             ]
         }

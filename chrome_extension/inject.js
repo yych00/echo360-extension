@@ -138,10 +138,11 @@
             if (lines[i].includes('-->')) {
                 const timeMatch = lines[i].split('-->');
                 const parseTime = (str) => {
-                    const parts = str.trim().split(':');
+                    const cleanStr = str.trim().split(/\s+/)[0];
+                    const parts = cleanStr.split(':');
                     let sec = 0;
-                    if (parts.length === 3) sec = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseFloat(parts[2]);
-                    else if (parts.length === 2) sec = parseInt(parts[0]) * 60 + parseFloat(parts[1]);
+                    if (parts.length === 3) sec = parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseFloat(parts[2]);
+                    else if (parts.length === 2) sec = parseInt(parts[0], 10) * 60 + parseFloat(parts[1]);
                     return sec * 1000;
                 };
                 try {
@@ -163,7 +164,7 @@
     }
 
     function extractCuesFromPayload(data) {
-        if (typeof data === 'string' && data.trim().startsWith('WEBVTT')) {
+        if (typeof data === 'string' && (data.includes('-->') || data.trim().startsWith('WEBVTT'))) {
             return parseVTT(data);
         }
 
@@ -855,7 +856,21 @@
         }
     }
 
-    // ============== 主动发现字幕 API 并自行请求（无需 hook 原生 API）==============
+/* --- 拓宽字幕识别规则，同时兼容校内/校外公开页面与不同格式 --- */
+    function isTranscriptOrCaptionUrl(url) {
+        if (!url) return false;
+        const lower = url.toLowerCase();
+        // 排除流媒体音视频分片和静态资源
+        if (lower.includes('.m3u8') || lower.includes('.m4s') || lower.includes('.mp4') || lower.includes('.jpg') || lower.includes('.png') || lower.includes('.gif') || lower.includes('.svg') || lower.includes('.js') || lower.includes('.css')) {
+            return false;
+        }
+        return (
+            lower.includes('/transcript') ||
+            lower.includes('.vtt') ||
+            lower.includes('captions') ||
+            lower.includes('caption_file')
+        );
+    }
 
     // 已请求过的 URL 去重，防止重复处理
     const _fetchedTranscriptUrls = new Set();
@@ -869,7 +884,7 @@
             // credentials: include 确保携带登录 Cookie，与页面原请求行为一致
             const res = await fetch(url, { credentials: 'include' });
             if (!res.ok) {
-                log.warn('Transcript fetch failed:', res.status);
+                log.warn('Transcript fetch failed:', res.status, url);
                 return;
             }
 
@@ -897,20 +912,21 @@
     // 检查页面已有的 performance 记录（适用于插件比 Echo360 晚加载的情况）
     function checkExistingPerformanceEntries() {
         performance.getEntries()
-            .filter(e => e.name && e.name.includes('/transcript'))
+            .filter(e => e.name && isTranscriptOrCaptionUrl(e.name))
             .forEach(e => fetchTranscriptFromUrl(e.name));
     }
 
     // 用 PerformanceObserver 监听未来的网络请求（echo360 播放时主动请求字幕接口）
     const _transcriptObserver = new PerformanceObserver((list) => {
         list.getEntries()
-            .filter(e => e.name && e.name.includes('/transcript'))
+            .filter(e => e.name && isTranscriptOrCaptionUrl(e.name))
             .forEach(e => fetchTranscriptFromUrl(e.name));
     });
     _transcriptObserver.observe({ entryTypes: ['resource'] });
 
     // 立即扫描已有记录
     checkExistingPerformanceEntries();
+/* --- ---------------------------------------------------- --- */
 
     // ==========================================
     // 核心引擎：定时器轮询模式 (终极防御覆盖和React重构)
