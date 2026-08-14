@@ -370,6 +370,7 @@
 
         input[type="range"] {
             flex: 1;
+            appearance: none;
             -webkit-appearance: none;
             height: 4px;
             border-radius: var(--radius-full);
@@ -379,9 +380,22 @@
         }
 
         input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
             -webkit-appearance: none;
             width: 12px;
             height: 12px;
+            border: none;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            box-shadow: 0 0 4px var(--accent-glow);
+            transition: var(--transition);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            border: none;
             border-radius: 50%;
             background: var(--accent);
             cursor: pointer;
