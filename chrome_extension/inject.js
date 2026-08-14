@@ -5,6 +5,16 @@
 (function () {
     'use strict';
 
+    // ========= 防止插件更新时重复注入（让旧实例通过事件监听复活，新实例直接退出） =========
+    if (window.__ECHO360_CC_INJECTED) {
+        // 新 content.js 已重新注入 inject.js，但旧实例仍在页面中运行
+        // 旧实例监听着 echo360-cc-config-updated 事件，content.js 也会再次 dispatch 该事件
+        // 因此这里什么都不用做，直接 return 避免双实例冲突
+        console.log('[Echo360 CC] inject.js already active, skipping duplicate injection.');
+        return;
+    }
+    window.__ECHO360_CC_INJECTED = true;
+
     // ========= 可控 Debug 日志 =========
     const DEBUG = false;
     const log = {
@@ -477,6 +487,24 @@
     }
 
     window.addEventListener('echo360-cc-config-updated', (event) => {
+        // 如果此前检测到插件断开而熔断，content.js 重新注入后会再次派发此事件，借此复活队列
+        if (window._ECHO360_EXTENSION_DEAD) {
+            window._ECHO360_EXTENSION_DEAD = false;
+            log.info('[inject.js] Extension reconnected, resuming translation queue...');
+            applyConfigImmediately(event.detail || {});
+            // 恢复翻译队列（如果还有未完成的 cue）
+            if (transcriptData && transcriptData.length > 0) {
+                const currentTimeMs = getCurrentPlaybackTimeMs();
+                const focusIndex = getCueIndexByTime(transcriptData, currentTimeMs);
+                translationState.runId += 1;
+                translationState.cues = transcriptData;
+                translationState.targetLang = getTargetLang();
+                translationState.focusIndex = focusIndex >= 0 ? focusIndex : 0;
+                translationState.processing = false;
+                queueFocusedTranslation(transcriptData, translationState.focusIndex);
+            }
+            return;
+        }
         applyConfigImmediately(event.detail || {});
     });
 
@@ -559,6 +587,10 @@
 
     async function translateCue(cue, targetLang) {
         if (!cue || !cue.text || cue.zhText !== undefined || cue._isTranslating) return false;
+        if (window._ECHO360_EXTENSION_DEAD) {
+            cue.zhText = '[插件已更新，请刷新网页]';
+            return false;
+        }
 
         cue._isTranslating = true;
         try {
@@ -571,13 +603,26 @@
             delete cue._tempDisplay;
             return true;
         } catch (e) {
-            log.error('Translate failed for cue:', cue.text, {
-                message: e?.message || String(e),
-                code: e?.code || 'TRANSLATE_UNKNOWN_ERROR',
-                category: e?.category || 'unknown',
-                retryable: !!e?.retryable,
-                status: e?.status || 0
-            });
+            if (e?.code === 'EXTENSION_CONTEXT_INVALIDATED') {
+                window._ECHO360_EXTENSION_DEAD = true;
+                cue.zhText = '[插件已更新，请刷新网页]';
+                return false;
+            }
+
+            // bridge timeout 是插件刷新过渡期的正常现象，降为 warn 避免误导
+            const isBridgeTimeout = e?.code === 'TRANSLATE_BRIDGE_TIMEOUT';
+            if (isBridgeTimeout) {
+                log.warn('Translate bridge timeout (extension reconnecting):', cue.text);
+            } else {
+                log.error('Translate failed for cue:', cue.text, {
+                    message: e?.message || String(e),
+                    code: e?.code || 'TRANSLATE_UNKNOWN_ERROR',
+                    category: e?.category || 'unknown',
+                    retryable: !!e?.retryable,
+                    status: e?.status || 0
+                });
+            }
+
             if (e?.status === 429) {
                 cue.zhText = '[429 请求限流]';
             } else if ((e?.category === 'timeout' || e?.category === 'network' || e?.status >= 500)) {
@@ -620,6 +665,12 @@
     async function translateCueBatch(batch, targetLang) {
         const cuesToTranslate = (batch || []).filter(cue => cue && cue.text && cue.zhText === undefined && !cue._isTranslating);
         if (cuesToTranslate.length === 0) return false;
+        if (window._ECHO360_EXTENSION_DEAD) {
+            cuesToTranslate.forEach(cue => {
+                cue.zhText = '[插件已更新，请刷新网页]';
+            });
+            return false;
+        }
 
         cuesToTranslate.forEach(cue => {
             cue._isTranslating = true;
@@ -643,6 +694,14 @@
 
             return true;
         } catch (error) {
+            if (error?.code === 'EXTENSION_CONTEXT_INVALIDATED') {
+                window._ECHO360_EXTENSION_DEAD = true;
+                cuesToTranslate.forEach(cue => {
+                    cue.zhText = '[插件已更新，请刷新网页]';
+                });
+                return false;
+            }
+
             log.warn('Batch translate failed fallback check.', {
                 message: error?.message || String(error),
                 code: error?.code || 'TRANSLATE_UNKNOWN_ERROR',
@@ -791,10 +850,14 @@
 
     async function processTranslationQueue(runId) {
         if (translationState.processing) return;
+        if (window._ECHO360_EXTENSION_DEAD) return;
+
         translationState.processing = true;
 
         try {
             while (runId === translationState.runId && translationState.cues && translationState.cues.length > 0) {
+                if (window._ECHO360_EXTENSION_DEAD) break;
+
                 const cues = translationState.cues;
                 const batch = pickNextBatch(cues, translationState.focusIndex, TRANSLATION_BATCH_SIZE);
 
@@ -816,7 +879,7 @@
             }
         } finally {
             translationState.processing = false;
-            if (runId !== translationState.runId && translationState.cues && translationState.cues.length > 0) {
+            if (!window._ECHO360_EXTENSION_DEAD && runId !== translationState.runId && translationState.cues && translationState.cues.length > 0) {
                 processTranslationQueue(translationState.runId);
             }
         }

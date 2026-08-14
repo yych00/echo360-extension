@@ -60,39 +60,46 @@ function postMessageToPage(message) {
 }
 
 function forwardTranslateRequest(messageType, requestId, payload, _isRetry) {
-    chrome.runtime.sendMessage({ type: messageType, payload }, (response) => {
-        if (chrome.runtime.lastError) {
-            // Service Worker 冷启动导致连接失败时，自动延迟 500ms 重试一次
-            if (!_isRetry && chrome.runtime.lastError.message?.includes('Receiving end does not exist')) {
-                setTimeout(() => forwardTranslateRequest(messageType, requestId, payload, true), 500);
+    try {
+        chrome.runtime.sendMessage({ type: messageType, payload }, (response) => {
+            if (chrome.runtime.lastError) {
+                const msg = chrome.runtime.lastError.message || '';
+                // Extension context invalidated：插件刚更新/重载，等 inject.js 复活后会自动重试
+                if (msg.includes('Extension context invalidated')) return;
+                // Service Worker 冷启动导致连接失败时，自动延迟 500ms 重试一次
+                if (!_isRetry && msg.includes('Receiving end does not exist')) {
+                    setTimeout(() => forwardTranslateRequest(messageType, requestId, payload, true), 500);
+                    return;
+                }
+
+                postMessageToPage({
+                    type: 'TRANSLATE_RESPONSE',
+                    requestId,
+                    success: false,
+                    error: msg || 'Background translation request failed.',
+                    errorCode: 'TRANSLATE_RUNTIME_ERROR',
+                    errorCategory: 'runtime',
+                    retryable: false,
+                    status: 0
+                });
                 return;
             }
 
             postMessageToPage({
                 type: 'TRANSLATE_RESPONSE',
                 requestId,
-                success: false,
-                error: chrome.runtime.lastError.message || 'Background translation request failed.',
-                errorCode: 'TRANSLATE_RUNTIME_ERROR',
-                errorCategory: 'runtime',
-                retryable: false,
-                status: 0
+                success: !!response?.success,
+                payload: response?.payload,
+                error: response?.error || '',
+                errorCode: response?.errorCode || '',
+                errorCategory: response?.errorCategory || '',
+                retryable: !!response?.retryable,
+                status: response?.status || 0
             });
-            return;
-        }
-
-        postMessageToPage({
-            type: 'TRANSLATE_RESPONSE',
-            requestId,
-            success: !!response?.success,
-            payload: response?.payload,
-            error: response?.error || '',
-            errorCode: response?.errorCode || '',
-            errorCategory: response?.errorCategory || '',
-            retryable: !!response?.retryable,
-            status: response?.status || 0
         });
-    });
+    } catch (err) {
+        // 同步抛出的 "Extension context invalidated"：静默忽略，inject.js 复活后队列会自动恢复
+    }
 }
 
 // 监听从网站里的 inject.js 传出来的进度消息并向外透传给插件 options
