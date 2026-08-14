@@ -1,235 +1,192 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 
 <head>
     <meta charset="utf-8">
-    <title>Echo360 CC 字幕配置</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Echo360 CC 字幕助手</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            /* 上边距单独缩小，左右下保持 20px */
-            padding: 10px 20px 20px;
-            background-color: #f7f9fc;
-            color: #333;
-            max-width: 400px;
-            margin: 0 auto;
+        /* ========================================
+         * Echo360 CC 字幕助手 — 极简紧凑专业设计体系
+         * (基于 Canvas Copilot 精细 UI 体系)
+         * ======================================== */
+
+        :root {
+            --bg-panel: #18181b;
+            --bg-card: #27272a;
+            --bg-card-hover: #2f2f35;
+            --bg-toolbar: #202023;
+            --bg-input: #1f1f23;
+            --bg-input-hover: #2a2a30;
+            --bg-hover: #3f3f46;
+            
+            --text-primary: #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --text-tertiary: #71717a;
+            
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --accent-glow: rgba(59, 130, 246, 0.35);
+            --accent-green: #10b981;
+            
+            --border: #38383e;
+            --border-subtle: #27272a;
+            --border-focus: #3b82f6;
+            
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius-full: 9999px;
+            
+            --transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: 'Cascadia Code', 'Fira Code', Consolas, monospace;
         }
 
-        h2 {
-            color: #1a73e8;
-            font-size: 20px;
-            font-weight: 600;
-            text-align: center;
-            margin-top: 0;
-            margin-bottom: 16px;
-        }
-
-        .setting-group {
-            margin-bottom: 16px;
-            background: #fff;
-            padding: 16px;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        select,
-        input[type="number"],
-        input[type="color"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
             box-sizing: border-box;
-            font-size: 14px;
         }
 
-        select:focus,
-        input:focus {
-            border-color: #1a73e8;
-            outline: none;
+        body {
+            font-family: var(--font-ui);
+            font-size: 12px;
+            background-color: var(--bg-panel);
+            color: var(--text-primary);
+            line-height: 1.4;
+            width: 350px;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            user-select: none;
         }
 
-        .color-row {
+        /* 滚动条 */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: var(--radius-full);
+        }
+
+        /* 头部导航栏 */
+        .app-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            height: 38px;
+            padding: 0 12px;
+            background: var(--bg-toolbar);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
-        .color-row input[type="color"] {
-            width: 50px;
-            height: 35px;
-            padding: 2px;
-            cursor: pointer;
-        }
-
-        button {
-            display: block;
-            width: 100%;
-            background: #1a73e8;
-            color: white;
-            border: none;
-            padding: 12px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-top: 24px;
-            transition: background 0.2s;
-        }
-
-        button:hover {
-            background: #1557b0;
-        }
-
-        .button-group {
+        .brand-container {
             display: flex;
-            gap: 12px;
-            margin-top: 16px;
+            align-items: center;
+            gap: 7px;
         }
 
-        .button-group button {
-            margin-top: 0;
-            flex: 1;
-        }
-
-        .reset-btn {
-            background: #f1f3f4;
-            color: #5f6368;
-            border: 1px solid #dadce0;
-        }
-
-        .reset-btn:hover {
-            background: #e8eaed;
-        }
-
-        #status {
-            color: #0f9d58;
-            font-weight: bold;
-            text-align: center;
-            margin-top: 8px;
-            min-height: 0;
-        }
-
-        .preview-box {
-            margin-top: 16px;
-            background: #222;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
-        }
-
-        .preview-en {
-            color: #fff;
-            opacity: 0.9;
-            margin-bottom: 4px;
-        }
-
-        .preview-zh {
-            font-weight: bold;
-        }
-
-        .export-card {
-            margin-top: 16px;
-            background: #fff;
-            padding: 16px;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .export-meta {
-            font-size: 13px;
-            line-height: 1.6;
-            color: #4a5568;
-            margin-top: 10px;
-        }
-
-        .export-meta strong {
-            color: #1f2937;
-        }
-
-        .secondary-btn {
-            margin-top: 12px;
-            background: #0f9d58;
-        }
-
-        .secondary-btn:hover {
-            background: #0b7a43;
-        }
-
-        .muted-status {
-            color: #5f6368;
-            font-weight: 600;
-            text-align: center;
-            margin-top: 10px;
-            min-height: 20px;
-            font-size: 13px;
-        }
-
-        /* --- 字幕显示模式按钮组 --- */
-        .mode-btn-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        .mode-btn {
-            flex: 1;
+        .brand-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 3px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            padding: 8px 12px;
-            border: 2px solid #dadce0;
-            border-radius: 8px;
-            cursor: pointer;
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 10px;
+            box-shadow: 0 2px 4px var(--accent-glow);
+        }
+
+        .brand-text {
             font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .version-badge {
+            font-size: 10px;
+            font-family: var(--font-mono);
             font-weight: 600;
-            color: #5f6368;
-            background: #f8f9fa;
-            transition: border-color 0.2s, background 0.2s, color 0.2s;
-            user-select: none;
-            margin-bottom: 0;
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            padding: 1px 5px;
+            border-radius: 3px;
+            border: 1px solid var(--border);
         }
 
-        .mode-btn input[type="checkbox"] {
-            display: none;
-        }
-
-        .mode-btn.active {
-            border-color: #1a73e8;
-            background: #e8f0fe;
-            color: #1a73e8;
-        }
-
-        /* Switch CSS */
-        .switch-group {
+        /* 页面主体 */
+        .content-container {
+            padding: 8px 10px 8px;
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 7px 9px;
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .card-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        /* 开关控件 */
+        .switch-row {
+            display: flex;
             align-items: center;
-            background: #e8f0fe;
-            padding: 12px 16px;
+            justify-content: space-between;
+            padding: 2px 0;
+        }
+
+        .switch-row + .switch-row {
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px solid var(--border-subtle);
         }
 
         .switch-label {
-            margin-bottom: 0;
-            color: #1a73e8;
-            font-size: 16px;
-            font-weight: bold;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            cursor: pointer;
         }
 
         .switch {
             position: relative;
             display: inline-block;
-            width: 44px;
-            height: 24px;
-            margin-bottom: 0;
+            width: 32px;
+            height: 18px;
+            flex-shrink: 0;
+            margin: 0;
         }
 
         .switch input {
@@ -245,142 +202,603 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 24px;
+            background-color: var(--bg-input);
+            border: 1px solid var(--border);
+            transition: var(--transition);
+            border-radius: var(--radius-full);
         }
 
         .slider:before {
             position: absolute;
             content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            top: 3px;
-            background-color: white;
-            transition: .4s;
+            height: 12px;
+            width: 12px;
+            left: 2px;
+            top: 2px;
+            background-color: var(--text-secondary);
+            transition: var(--transition);
             border-radius: 50%;
         }
 
-        input:checked+.slider {
-            background-color: #1a73e8;
+        input:checked + .slider {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            box-shadow: 0 0 6px var(--accent-glow);
         }
 
-        input:checked+.slider:before {
-            transform: translateX(20px);
+        input:checked + .slider:before {
+            transform: translateX(14px);
+            background-color: #ffffff;
+        }
+
+        /* 模式选择按钮 */
+        .mode-btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .mode-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 5px 8px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            transition: var(--transition);
+            user-select: none;
+        }
+
+        .mode-btn:hover {
+            background: var(--bg-input-hover);
+            color: var(--text-primary);
+        }
+
+        .mode-btn input[type="checkbox"] {
+            display: none;
+        }
+
+        .mode-btn.active {
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.18);
+            color: #93c5fd;
+        }
+
+        /* 表单控件 */
+        .form-row {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .form-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .unit-badge {
+            font-size: 9px;
+            color: var(--text-tertiary);
+            font-family: var(--font-mono);
+        }
+
+        select,
+        input[type="number"] {
+            width: 100%;
+            height: 25px;
+            padding: 0 7px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-family: inherit;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        select:focus,
+        input[type="number"]:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 2px var(--accent-glow);
+        }
+
+        select {
+            cursor: pointer;
+        }
+
+        .grid-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .color-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1px 0;
+        }
+
+        .color-picker-wrapper {
+            display: flex;
+            align-items: center;
+        }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: transparent;
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            cursor: pointer;
+            padding: 0;
+            transition: var(--transition);
+        }
+
+        input[type="color"]:hover {
+            transform: scale(1.1);
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 50%;
+        }
+
+        /* 滑块 */
+        .range-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            border-radius: var(--radius-full);
+            background: var(--bg-input);
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            box-shadow: 0 0 4px var(--accent-glow);
+            transition: var(--transition);
+        }
+
+        .range-value {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent);
+            width: 26px;
+            text-align: right;
+        }
+
+        /* 进度条 */
+        .progress-bar-container {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            height: 18px;
+            position: relative;
+            margin-top: 2px;
+        }
+
+        #optionProgressBar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            transition: width 0.3s ease;
+        }
+
+        #optionProgressText {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+            color: #ffffff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        /* 可折叠详情组件 */
+        details.export-details {
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        details.export-details summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            list-style: none;
+            user-select: none;
+            transition: var(--transition);
+        }
+
+        details.export-details summary::-webkit-details-marker {
+            display: none;
+        }
+
+        details.export-details summary:hover {
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        .summary-arrow {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            transition: transform 0.2s ease;
+            display: inline-block;
+        }
+
+        details[open] .summary-arrow {
+            transform: rotate(90deg);
+        }
+
+        /* 导出详细信息内容 */
+        .export-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            padding: 5px 8px;
+            border-top: 1px solid var(--border-subtle);
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .export-meta strong {
+            color: var(--text-primary);
+        }
+
+        .muted-status {
+            color: var(--text-tertiary);
+            font-size: 10px;
+            text-align: center;
+            margin-top: 2px;
+        }
+
+        .muted-status:empty {
+            display: none;
+        }
+
+        /* 实时预览 */
+        .preview-wrapper {
+            position: relative;
+            background: radial-gradient(circle at center, #27272a 0%, #18181b 100%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px 8px 8px;
+            min-height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .preview-badge {
+            position: absolute;
+            top: 2px;
+            left: 5px;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            background: rgba(0, 0, 0, 0.4);
+            padding: 1px 4px;
+            border-radius: 2px;
+        }
+
+        .preview-box {
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            text-align: center;
+            max-width: 95%;
+            transition: var(--transition);
+        }
+
+        .preview-en {
+            opacity: 0.9;
+            margin-bottom: 2px;
+            line-height: 1.2;
+        }
+
+        .preview-zh {
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        /* 按钮 */
+        .btn-group {
+            display: flex;
+            gap: 6px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 27px;
+            padding: 0 10px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition);
+            border: 1px solid transparent;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            flex: 1;
+            background: var(--accent);
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-input);
+            border-color: var(--border);
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:disabled {
+            background: var(--bg-input);
+            border-color: var(--border);
+            color: var(--text-tertiary);
+            cursor: not-allowed;
+        }
+
+        /* 导出双语按钮：绿色透明底 + 绿色边框与文字，风格与模式选中按钮一致 */
+        .btn-success {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: #10b981;
+            color: #34d399;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: rgba(16, 185, 129, 0.25);
+            border-color: #34d399;
+            color: #6ee7b7;
+        }
+
+        .btn-success:disabled {
+            background: var(--bg-input);
+            border-color: var(--border);
+            color: var(--text-tertiary);
+            cursor: not-allowed;
+        }
+
+        #status {
+            color: var(--accent-green);
+            font-size: 11px;
+            font-weight: 600;
+            text-align: center;
+            transition: var(--transition);
+        }
+
+        #status:empty {
+            display: none;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 10px;
+            color: var(--text-tertiary);
+            margin-top: 2px;
         }
     </style>
 </head>
 
 <body>
-    <h2>Echo360 CC 字幕助手</h2>
-
-    <div class="setting-group switch-group">
-        <label for="enableSubtitles" class="switch-label">启用 CC 字幕</label>
-        <label class="switch">
-            <input type="checkbox" id="enableSubtitles" checked>
-            <span class="slider"></span>
-        </label>
-    </div>
-
-    <div class="setting-group switch-group">
-        <label for="keyboardShortcuts" class="switch-label">键盘快进快退</label>
-        <label class="switch">
-            <input type="checkbox" id="keyboardShortcuts" checked>
-            <span class="slider"></span>
-        </label>
-    </div>
-
-    <!-- 字幕显示模式：中文 / 英文 / 双语 -->
-    <div class="setting-group">
-        <label>字幕显示内容</label>
-        <div class="mode-btn-group">
-            <label class="mode-btn" id="showChineseBtn">
-                <input type="checkbox" id="showChinese" checked>
-                中文字幕
-            </label>
-            <label class="mode-btn" id="showEnglishBtn">
-                <input type="checkbox" id="showEnglish" checked>
-                英文字幕
-            </label>
+    <!-- 顶部导航栏 -->
+    <header class="app-header">
+        <div class="brand-container">
+            <div class="brand-icon">CC</div>
+            <span class="brand-text">Echo360 CC 字幕助手</span>
         </div>
-    </div>
-
-    <div class="setting-group">
-        <label for="targetLang">翻译目标语言</label>
-        <select id="targetLang">
-            <option value="zh-CN">简体中文 (默认)</option>
-            <option value="zh-TW">繁体中文</option>
-        </select>
-    </div>
-
-    <div class="setting-group">
-        <label>后台翻译进度</label>
-        <div
-            style="background: #e0e0e0; border-radius: 4px; overflow: hidden; height: 26px; position: relative; margin-top: 8px;">
-            <div id="optionProgressBar"
-                style="width: 0%; height: 100%; background: #1a73e8; transition: width 0.3s ease-out;"></div>
-            <div id="optionProgressText"
-                style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; text-align: center; font-size: 13px; line-height: 26px; color: #fff; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); font-weight: bold;">
-                暂无活跃任务 (请播放视频同步进度)</div>
+        <div class="header-badges">
+            <span class="version-badge">v1.1.0</span>
         </div>
-    </div>
+    </header>
 
-    <div class="setting-group">
-        <label for="fontSize">中文字幕字号大小 (px)</label>
-        <input type="number" id="fontSize" value="22" min="12" max="64">
-    </div>
+    <div class="content-container">
+        <!-- 核心开关卡片 -->
+        <div class="card">
+            <div class="switch-row">
+                <label for="enableSubtitles" class="switch-label">启用 CC 字幕</label>
+                <label class="switch">
+                    <input type="checkbox" id="enableSubtitles" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
 
-    <div class="setting-group">
-        <label for="englishFontSize">英文字幕字号大小 (px)</label>
-        <input type="number" id="englishFontSize" value="20" min="12" max="64">
-    </div>
-
-    <div class="setting-group">
-        <label for="bgOpacity">字幕背景透明度</label>
-        <div style="display: flex; align-items: center;">
-            <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.6"
-                style="flex: 1; margin-right: 15px;">
-            <span id="bgOpacityValue" style="width: 35px; font-weight: bold;">0.6</span>
+            <div class="switch-row">
+                <label for="keyboardShortcuts" class="switch-label">键盘快进快退 (← →)</label>
+                <label class="switch">
+                    <input type="checkbox" id="keyboardShortcuts" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
         </div>
-    </div>
 
-    <div class="setting-group">
-        <div class="color-row">
-            <label for="translateColor">翻译字幕颜色</label>
-            <input type="color" id="translateColor" value="#ffffff">
+        <!-- 显示语言轨迹 -->
+        <div class="card">
+            <span class="card-title">显示语言轨迹</span>
+            <div class="mode-btn-group">
+                <label class="mode-btn" id="showChineseBtn">
+                    <input type="checkbox" id="showChinese" checked>
+                    <span>中文字幕</span>
+                </label>
+                <label class="mode-btn" id="showEnglishBtn">
+                    <input type="checkbox" id="showEnglish" checked>
+                    <span>英文字幕</span>
+                </label>
+            </div>
         </div>
-    </div>
 
-    <div class="setting-group">
-        <div class="color-row">
-            <label for="englishColor">英文字幕底色</label>
-            <input type="color" id="englishColor" value="#ffffff">
+        <!-- 数据导出卡片 (含后台翻译缓存进度与可折叠详情，放显示语言轨迹后面) -->
+        <div class="card">
+            <span class="card-title">数据导出与翻译进度</span>
+
+            <div class="form-row">
+                <span class="form-label">后台翻译缓存进度</span>
+                <div class="progress-bar-container">
+                    <div id="optionProgressBar"></div>
+                    <div id="optionProgressText">暂无活跃任务 (请播放视频同步进度)</div>
+                </div>
+            </div>
+
+            <details class="export-details" id="exportDetails">
+                <summary>
+                    <span id="exportSummaryText">查看字幕缓存详情</span>
+                    <span class="summary-arrow">›</span>
+                </summary>
+                <div class="export-meta" id="exportMeta">
+                    暂无字幕缓存。请先打开 Echo360 视频页面并开始播放。
+                </div>
+            </details>
+
+            <div class="btn-group" style="margin-top: 5px;">
+                <button id="exportEnTxtBtn" class="btn btn-secondary" style="flex: 1;" type="button" disabled>导出英文
+                    TXT</button>
+                <button id="exportTxtBtn" class="btn btn-success" style="flex: 1;" type="button" disabled>导出双语
+                    TXT</button>
+            </div>
+            <div id="exportStatus" class="muted-status"></div>
         </div>
-    </div>
 
-    <div class="preview-box" id="previewBox">
-        <div class="preview-en" id="previewEn" style="color: #ffffff;">This is the original English text.</div>
-        <div class="preview-zh" id="previewZh" style="color: #ffffff;">这里是动态为您翻译的中文效果</div>
-    </div>
+        <!-- 排版、色彩风格与语言栏 (含翻译目标语言、字号、透明度、毛玻璃、颜色) -->
+        <div class="card">
+            <span class="card-title">排版、色彩风格与语言</span>
 
-    <div class="button-group">
-        <button id="resetBtn" class="reset-btn" type="button">恢复默认</button>
-        <button id="saveBtn" type="button">保存设置</button>
-    </div>
-    <div id="status"></div>
+            <div class="form-row">
+                <label for="targetLang" class="form-label">翻译目标语言</label>
+                <select id="targetLang">
+                    <option value="zh-CN">简体中文 (默认)</option>
+                    <option value="zh-TW">繁体中文</option>
+                </select>
+            </div>
 
-    <div class="export-card">
-        <label>导出中英文字幕</label>
-        <div class="export-meta" id="exportMeta">
-            暂无字幕缓存。请先打开 Echo360 视频页面并开始播放。
+            <div class="grid-2col" style="margin-top: 5px;">
+                <div class="form-row">
+                    <label for="fontSize" class="form-label">
+                        <span>中文大小</span>
+                        <span class="unit-badge">PX</span>
+                    </label>
+                    <input type="number" id="fontSize" value="22" min="12" max="64">
+                </div>
+
+                <div class="form-row">
+                    <label for="englishFontSize" class="form-label">
+                        <span>英文大小</span>
+                        <span class="unit-badge">PX</span>
+                    </label>
+                    <input type="number" id="englishFontSize" value="20" min="12" max="64">
+                </div>
+            </div>
+
+            <div class="form-row" style="margin-top: 5px;">
+                <div class="form-label">
+                    <span>背景透明度</span>
+                    <span id="bgOpacityValue" class="range-value">0.6</span>
+                </div>
+                <div class="range-container">
+                    <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.6">
+                </div>
+            </div>
+
+            <div class="switch-row"
+                style="margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--border-subtle);">
+                <label for="blurEffect" class="switch-label" style="font-size: 11px;">毛玻璃背景滤镜</label>
+                <label class="switch">
+                    <input type="checkbox" id="blurEffect">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="grid-2col" style="margin-top: 5px;">
+                <div class="color-row">
+                    <label for="translateColor" class="switch-label" style="font-size: 11px;">中文字体色</label>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="translateColor" value="#ffffff">
+                    </div>
+                </div>
+
+                <div class="color-row">
+                    <label for="englishColor" class="switch-label" style="font-size: 11px;">英文字体色</label>
+                    <div class="color-picker-wrapper">
+                        <input type="color" id="englishColor" value="#ffffff">
+                    </div>
+                </div>
+            </div>
         </div>
-        <button id="exportTxtBtn" class="secondary-btn" type="button" disabled>导出双语 TXT</button>
-        <div id="exportStatus" class="muted-status"></div>
-    </div>
 
-    <div style="text-align: center; margin-top: 8px; font-size: 13px; color: #888; line-height: 1.5;">
-        Created with ❤️ by yuchenyang
+        <!-- 实时效果预览视口 -->
+        <div class="preview-wrapper">
+            <span class="preview-badge">Live Preview</span>
+            <div class="preview-box" id="previewBox">
+                <div class="preview-en" id="previewEn" style="color: #ffffff;">This is the original English text.</div>
+                <div class="preview-zh" id="previewZh" style="color: #ffffff;">这里是动态为您翻译的中文效果</div>
+            </div>
+        </div>
+
+        <!-- 按钮与状态 -->
+        <div class="btn-group">
+            <button id="resetBtn" class="btn btn-secondary" style="flex: 1;" type="button">恢复默认</button>
+            <button id="saveBtn" class="btn btn-primary" style="flex: 1;" type="button">保存配置</button>
+        </div>
+        <div id="status"></div>
+
+        <div class="footer-note">
+            Echo360 CC Subtitle Copilot • Built for Canvas & Echo360
+        </div>
     </div>
 
     <script src="options.js"></script>

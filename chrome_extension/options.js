@@ -15,6 +15,7 @@ const bgOpacityValue = document.getElementById("bgOpacityValue");
 const saveBtn = document.getElementById("saveBtn");
 const statusDiv = document.getElementById("status");
 const exportBtn = document.getElementById("exportTxtBtn");
+const exportEnBtn = document.getElementById("exportEnTxtBtn");
 const exportStatusDiv = document.getElementById("exportStatus");
 const exportMetaDiv = document.getElementById("exportMeta");
 const resetBtn = document.getElementById("resetBtn");
@@ -25,6 +26,8 @@ const showChineseBtn = document.getElementById("showChineseBtn");
 const showEnglishBtn = document.getElementById("showEnglishBtn");
 // 键盘快捷键开关
 const keyboardShortcutsInput = document.getElementById("keyboardShortcuts");
+// 毛玻璃背景开关
+const blurInput = document.getElementById("blurEffect");
 let statusClearTimer = null;
 // --- 自动保存防抖计时器 ---
 let autoSaveTimer = null;
@@ -38,7 +41,8 @@ const CONFIG_KEYS = [
     'ccBgOpacity',
     'ccShowChinese',
     'ccShowEnglish',
-    'ccKeyboardShortcuts'
+    'ccKeyboardShortcuts',
+    'ccBlur'
 ];
 
 // 最小安全回退配置（仅在 defaults.json 加载失败时兜底）
@@ -53,7 +57,8 @@ const FALLBACK_DEFAULT_CONFIG = {
     ccBgOpacity: 0.6,
     ccShowChinese: true,
     ccShowEnglish: true,
-    ccKeyboardShortcuts: true
+    ccKeyboardShortcuts: true,
+    ccBlur: false
 };
 let DEFAULT_CONFIG = { ...FALLBACK_DEFAULT_CONFIG };
 
@@ -84,7 +89,7 @@ function updateProgressUi(progress) {
 
     if (!progress) {
         bar.style.width = '0%';
-        bar.style.background = '#1a73e8';
+        bar.style.background = 'linear-gradient(90deg, #3b82f6, #60a5fa)';
         txt.innerText = '暂无进度';
         return;
     }
@@ -93,7 +98,7 @@ function updateProgressUi(progress) {
     const message = progress.msg || '暂无进度';
     bar.style.width = percent + '%';
     txt.innerText = message + (percent < 100 ? ` (${percent}%)` : '');
-    bar.style.background = percent === 100 ? '#0f9d58' : '#1a73e8';
+    bar.style.background = 'linear-gradient(90deg, #3b82f6, #60a5fa)';
 }
 
 function loadProgressState() {
@@ -153,13 +158,29 @@ function buildTranscriptTxt(payload) {
     return lines.join('\n');
 }
 
-function triggerTxtDownload(payload) {
-    const textContent = buildTranscriptTxt(payload);
+function buildEnglishTranscriptTxt(payload) {
+    const lines = [];
+    lines.push(`标题: ${payload.title || 'Echo360 字幕'}`);
+    lines.push(`页面: ${payload.pageUrl || ''}`);
+    lines.push(`字幕条数: ${payload.cueCount || 0}`);
+    lines.push('');
+
+    (payload.cues || []).forEach((cue) => {
+        lines.push(`[${formatTimestamp(cue.start)} - ${formatTimestamp(cue.end)}]`);
+        lines.push(`${cue.text || ''}`);
+        lines.push('');
+    });
+
+    return lines.join('\n');
+}
+
+function triggerTxtDownload(payload, type = 'bilingual') {
+    const isEnOnly = type === 'en';
+    const textContent = isEnOnly ? buildEnglishTranscriptTxt(payload) : buildTranscriptTxt(payload);
     const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     const title = sanitizeFileName(payload.title);
-    const lang = payload.targetLang || 'zh-CN';
 
     // 用缓存时间生成文件名时间戳，格式: 20260310-143025
     const dateObj = payload.capturedAt ? new Date(payload.capturedAt) : new Date();
@@ -174,7 +195,7 @@ function triggerTxtDownload(payload) {
     ].join('');
 
     link.href = url;
-    link.download = `${title}-${timeStr}.txt`;
+    link.download = isEnOnly ? `${title}-${timeStr}-EN.txt` : `${title}-${timeStr}.txt`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -185,7 +206,7 @@ function triggerTxtDownload(payload) {
 }
 
 function updateExportUi(payload) {
-    if (!exportBtn || !exportMetaDiv || !exportStatusDiv) return;
+    if (!exportMetaDiv || !exportStatusDiv) return;
 
     const renderMetaRow = (label, value) => {
         const row = document.createElement('div');
@@ -196,25 +217,32 @@ function updateExportUi(payload) {
         return row;
     };
 
+    const summaryTextEl = document.getElementById('exportSummaryText');
+
     if (!payload || !payload.cues || payload.cues.length === 0) {
-        exportBtn.disabled = true;
+        if (exportBtn) exportBtn.disabled = true;
+        if (exportEnBtn) exportEnBtn.disabled = true;
+        if (summaryTextEl) summaryTextEl.textContent = '查看字幕缓存详情';
         exportMetaDiv.textContent = '暂无字幕缓存。请先打开 Echo360 视频页面并开始播放。';
         exportStatusDiv.textContent = '';
         return;
     }
 
-    exportBtn.disabled = false;
+    if (exportBtn) exportBtn.disabled = false;
+    if (exportEnBtn) exportEnBtn.disabled = false;
+    const totalCount = payload.cueCount || payload.cues.length;
+    if (summaryTextEl) summaryTextEl.textContent = `字幕缓存详情 (${totalCount} 条)`;
     const capturedAt = payload.capturedAt ? new Date(payload.capturedAt).toLocaleString() : '未知';
     const title = payload.title || '未命名视频';
     exportMetaDiv.replaceChildren(
         renderMetaRow('课程标题', title),
-        renderMetaRow('字幕条数', `${payload.cueCount || payload.cues.length} 条`),
+        renderMetaRow('字幕条数', `${totalCount} 条`),
         renderMetaRow('已翻译', `${payload.translatedCount || 0} 条`),
         renderMetaRow('缓存时间', capturedAt)
     );
     exportStatusDiv.textContent = payload.isTranslationComplete
-        ? '字幕缓存完整，可以直接导出双语 TXT。'
-        : '字幕缓存已同步，尚有部分中文未完成翻译。';
+        ? '字幕缓存完整，可以直接导出英文或双语 TXT。'
+        : '字幕缓存已同步，英文完整可用；中文尚有部分未完成翻译。';
 }
 
 function loadExportState() {
@@ -248,7 +276,8 @@ function buildCurrentConfig() {
         ccBgOpacity: Number(bgOpacityInput.value),
         ccShowChinese: showChineseInput.checked,
         ccShowEnglish: showEnglishInput.checked,
-        ccKeyboardShortcuts: keyboardShortcutsInput.checked
+        ccKeyboardShortcuts: keyboardShortcutsInput.checked,
+        ccBlur: blurInput ? blurInput.checked : false
     };
 }
 
@@ -272,6 +301,7 @@ function applyConfigToForm(config) {
     showChineseInput.checked = config.ccShowChinese !== false;
     showEnglishInput.checked = config.ccShowEnglish !== false;
     keyboardShortcutsInput.checked = config.ccKeyboardShortcuts !== false;
+    if (blurInput) blurInput.checked = Boolean(config.ccBlur);
     syncModeBtnStyle();
     updatePreview();
 }
@@ -307,6 +337,9 @@ function updatePreview() {
     const opVal = Number(bgOpacityInput.value);
     previewBox.style.background = `rgba(0, 0, 0, ${opVal})`;
     previewBox.style.boxShadow = opVal === 0 ? 'none' : 'inset 0 2px 5px rgba(0, 0, 0, 0.5)';
+    const blurOn = blurInput ? blurInput.checked : false;
+    previewBox.style.backdropFilter = (blurOn && opVal > 0) ? 'blur(6px)' : 'none';
+    previewBox.style.webkitBackdropFilter = (blurOn && opVal > 0) ? 'blur(6px)' : 'none';
 
     // 显示或隐藏字幕预览
     const masterOn = enableSubtitlesInput.checked;
@@ -383,6 +416,14 @@ keyboardShortcutsInput.addEventListener('change', () => {
     saveAndBroadcast(keyboardShortcutsInput.checked ? '键盘快捷键已启用。' : '键盘快捷键已关闭。');
 });
 
+// 毛玻璃背景开关独立保存
+if (blurInput) {
+    blurInput.addEventListener('change', () => {
+        updatePreview();
+        saveAndBroadcast(blurInput.checked ? '毛玻璃背景已开启。' : '毛玻璃背景已关闭。');
+    });
+}
+
 // 保存配置 (不包含 enableSubtitles 的其余设置通过保存按钮保存)
 saveBtn.addEventListener('click', () => {
     saveAndBroadcast('设置已保存，并已立即应用到已打开的视频页。');
@@ -400,6 +441,21 @@ resetBtn.addEventListener('click', () => {
     });
 });
 
+if (exportEnBtn) {
+    exportEnBtn.addEventListener('click', () => {
+        chrome.storage.local.get({ echo360TranscriptExport: null }, (items) => {
+            const payload = items.echo360TranscriptExport;
+            if (!payload || !payload.cues || payload.cues.length === 0) {
+                updateExportUi(null);
+                return;
+            }
+
+            triggerTxtDownload(payload, 'en');
+            exportStatusDiv.textContent = '英文 TXT 已导出。';
+        });
+    });
+}
+
 if (exportBtn) {
     exportBtn.addEventListener('click', () => {
         chrome.storage.local.get({ echo360TranscriptExport: null }, (items) => {
@@ -409,7 +465,7 @@ if (exportBtn) {
                 return;
             }
 
-            triggerTxtDownload(payload);
+            triggerTxtDownload(payload, 'bilingual');
             exportStatusDiv.textContent = payload.isTranslationComplete
                 ? '双语 TXT 已导出。'
                 : '双语 TXT 已导出；未翻译的字幕行会保留为空。';

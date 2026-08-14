@@ -8,5 +8,6 @@
     "ccBgOpacity": 0.6,
     "ccShowChinese": true,
     "ccShowEnglish": true,
-    "ccKeyboardShortcuts": true
+    "ccKeyboardShortcuts": true,
+    "ccBlur": false
 }

@@ -37,7 +37,8 @@
         ccBgOpacity: 0.6,
         ccShowChinese: true,
         ccShowEnglish: true,
-        ccKeyboardShortcuts: true
+        ccKeyboardShortcuts: true,
+        ccBlur: false
     };
     let activeConfig = {
         ...BASE_CONFIG,
@@ -1014,12 +1015,12 @@
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    gap: 4px;
+                    gap: 5px;
                     text-align: center; 
                     color: #ffffff; 
                     padding: 8px 18px; 
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    border-radius: 6px; 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                    border-radius: 8px; 
                     pointer-events: none; 
                     z-index: 2147483647; 
                     font-weight: 600; 
@@ -1029,20 +1030,26 @@
                     overflow-wrap: anywhere;
                     word-break: break-word;
                     line-height: 1.4;
-                    text-shadow: 1px 1px 2px #000;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+                    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+                    backdrop-filter: blur(6px);
+                    -webkit-backdrop-filter: blur(6px);
+                    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
                     transform: translateX(-50%); /* 确保居中锚点永远是自身的水平中线 */
                     margin: 0;
                     box-sizing: border-box;
+                    transition: background 0.2s ease;
                 `;
                 document.body.appendChild(overlay);
                 log.info('CC Overlay 元素已成功创建并附加到 body.');
             }
 
-            // 响应最新的背景透明度设置
+            // 响应最新的背景透明度与毛玻璃设置
+            const enableBlur = Boolean(config.ccBlur);
             overlay.style.setProperty('background', `rgba(0, 0, 0, ${bgOp})`, 'important');
+            overlay.style.setProperty('backdrop-filter', (enableBlur && bgOp > 0) ? 'blur(6px)' : 'none', 'important');
+            overlay.style.setProperty('-webkit-backdrop-filter', (enableBlur && bgOp > 0) ? 'blur(6px)' : 'none', 'important');
             // 如果全透明，把阴影也隐去，显得更干净
-            overlay.style.setProperty('box-shadow', bgOp === 0 ? 'none' : '0 4px 6px rgba(0,0,0,0.3)', 'important');
+            overlay.style.setProperty('box-shadow', bgOp === 0 ? 'none' : '0 8px 24px rgba(0,0,0,0.45)', 'important');
 
             // 全屏处理 & 动态对齐视频画面中心
             const fsEl = document.fullscreenElement || document.webkitFullscreenElement;

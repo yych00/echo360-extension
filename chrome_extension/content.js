@@ -15,7 +15,8 @@ const FALLBACK_DEFAULT_CONFIG = {
     ccBgOpacity: 0.6,
     ccShowChinese: true,
     ccShowEnglish: true,
-    ccKeyboardShortcuts: true
+    ccKeyboardShortcuts: true,
+    ccBlur: false
 };
 let DEFAULT_CONFIG = { ...FALLBACK_DEFAULT_CONFIG };
 
